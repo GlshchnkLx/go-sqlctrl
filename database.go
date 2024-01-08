@@ -407,7 +407,7 @@ func (db *DataBase) GetCount(table *Table) (count int64, err error) {
 		return
 	}
 
-	dbRow := db.sqlRaw.QueryRow(fmt.Sprintf("SELECT COUNT(`%s`) FROM `%s`;", *table.AutoIncrement, table.SqlName))
+	dbRow := db.sqlRaw.QueryRow(fmt.Sprintf("SELECT COUNT(`%s`) FROM `%s`;", table.AutoIncrement.SqlName, table.SqlName))
 
 	err = dbRow.Err()
 	if err != nil {
@@ -433,7 +433,7 @@ func (db *DataBase) GetLastId(table *Table) (id int64, err error) {
 		return
 	}
 
-	dbRow := db.sqlRaw.QueryRow(fmt.Sprintf("SELECT MAX(`%s`) FROM `%s`;", *table.AutoIncrement, table.SqlName))
+	dbRow := db.sqlRaw.QueryRow(fmt.Sprintf("SELECT MAX(`%s`) FROM `%s`;", table.AutoIncrement.SqlName, table.SqlName))
 
 	err = dbRow.Err()
 	if err != nil {
@@ -459,7 +459,7 @@ func (db *DataBase) InsertValue(table *Table, value interface{}) (lastId int64, 
 			sqlResult      sql.Result
 		)
 
-		valueArray, err = table.convertInterfaceToStructArray(value)
+		valueArray, err = table.convertInterfaceToInterfaceArray(value)
 		if err != nil {
 			return
 		}
@@ -477,7 +477,6 @@ func (db *DataBase) InsertValue(table *Table, value interface{}) (lastId int64, 
 		for _, request := range requestArray {
 			sqlResult, err = sqlTx.Exec(request)
 			if err != nil {
-				fmt.Println(request)
 				return
 			}
 
@@ -499,6 +498,49 @@ func (db *DataBase) InsertValue(table *Table, value interface{}) (lastId int64, 
 	return
 }
 
+func (db *DataBase) ReplaceValue(table *Table, value interface{}) error {
+	return db.ExecWithTable(table, func(db *DataBase, sqlTx *sql.Tx, table *Table) (err error) {
+		var (
+			replacedCount int64
+			replacedValue int64
+			valueArray    []interface{}
+			requestArray  []string
+			sqlResult     sql.Result
+		)
+
+		valueArray, err = table.convertInterfaceToInterfaceArray(value)
+		if err != nil {
+			return
+		}
+
+		requestArray, err = table.sqlReplaceValue(valueArray)
+		if err != nil {
+			return
+		}
+
+		for _, request := range requestArray {
+			sqlResult, err = sqlTx.Exec(request)
+			if err != nil {
+				return
+			}
+
+			replacedValue, err = sqlResult.RowsAffected()
+			if err != nil {
+				return
+			}
+
+			replacedCount += replacedValue
+		}
+
+		if replacedCount < int64(len(valueArray)) {
+			err = errTableDidNotReplaceTheValue
+			return
+		}
+
+		return err
+	})
+}
+
 func (db *DataBase) UpdateValue(table *Table, value interface{}) error {
 	return db.ExecWithTable(table, func(db *DataBase, sqlTx *sql.Tx, table *Table) (err error) {
 		var (
@@ -509,7 +551,7 @@ func (db *DataBase) UpdateValue(table *Table, value interface{}) error {
 			sqlResult    sql.Result
 		)
 
-		valueArray, err = table.convertInterfaceToStructArray(value)
+		valueArray, err = table.convertInterfaceToInterfaceArray(value)
 		if err != nil {
 			return
 		}
@@ -522,6 +564,7 @@ func (db *DataBase) UpdateValue(table *Table, value interface{}) error {
 		for _, request := range requestArray {
 			sqlResult, err = sqlTx.Exec(request)
 			if err != nil {
+				fmt.Println(request)
 				return
 			}
 
@@ -552,7 +595,7 @@ func (db *DataBase) DeleteValue(table *Table, value interface{}) error {
 			sqlResult    sql.Result
 		)
 
-		valueArray, err = table.convertInterfaceToStructArray(value)
+		valueArray, err = table.convertInterfaceToInterfaceArray(value)
 		if err != nil {
 			return
 		}

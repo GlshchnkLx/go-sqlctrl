@@ -4,7 +4,9 @@ import (
 	"crypto/md5"
 	"encoding/hex"
 	"encoding/json"
+	"flag"
 	"fmt"
+	"html"
 	"reflect"
 	"strings"
 )
@@ -22,6 +24,9 @@ type TableField struct {
 	IsAutoIncrement bool `json:"isAutoIncrement"`
 	IsUnique        bool `json:"isUnique"`
 	IsNotNull       bool `json:"isNotNull"`
+
+	ValueDefault *string `json:"valueDefault"`
+	ValueCheck   *string `json:"valueCheck"`
 }
 
 func (field *TableField) GetHash() string {
@@ -32,6 +37,85 @@ func (field *TableField) GetHash() string {
 
 	tableHash := md5.Sum(tableJson)
 	return hex.EncodeToString(tableHash[:])
+}
+
+func (field *TableField) ReflectParse(reflectStructField reflect.StructField) bool {
+	reflectStructFieldTag := reflectStructField.Tag
+
+	sqlTagString, ok := reflectStructFieldTag.Lookup("sql")
+	if !ok {
+		return false
+	}
+
+	sqlTagSlice := strings.Split(sqlTagString, ",")
+	for sqlTagIndex, sqlTagOption := range sqlTagSlice {
+		sqlTagOption = strings.Trim(sqlTagOption, " ")
+		sqlTagSlice[sqlTagIndex] = "--" + sqlTagOption
+	}
+
+	fs := flag.NewFlagSet("", flag.ContinueOnError)
+	fs.Usage = func() {}
+
+	flagName := fs.String("NAME", field.GoName, "name")
+	flagType := fs.String("TYPE", "", "type")
+	flagPrimaryKey := fs.Bool("PRIMARY_KEY", false, "primary_key")
+	flagAutoIncrement := fs.Bool("AUTO_INCREMENT", false, "auto_increment")
+	flagUnique := fs.Bool("UNIQUE", false, "unique")
+	flagNotNull := fs.Bool("NOT_NULL", false, "not_null")
+	flagDefault := fs.String("DEFAULT", "", "default")
+	flagCheck := fs.String("CHECK", "", "check")
+
+	fs.Parse(sqlTagSlice)
+
+	if *flagName != "" {
+		field.SqlName = *flagName
+	}
+
+	if *flagType == "" {
+		fieldGoType := field.GoType
+
+		if field.GoType == reflect.Ptr {
+			fieldGoType = reflectStructField.Type.Elem().Kind()
+		}
+
+		switch fieldGoType {
+		case reflect.Bool:
+			field.SqlType = "INTEGER(1)"
+		case reflect.Uint, reflect.Int:
+			field.SqlType = "INTEGER(8)"
+		case reflect.Uint8, reflect.Int8:
+			field.SqlType = "INTEGER(1)"
+		case reflect.Uint16, reflect.Int16:
+			field.SqlType = "INTEGER(2)"
+		case reflect.Uint32, reflect.Int32:
+			field.SqlType = "INTEGER(4)"
+		case reflect.Uint64, reflect.Int64:
+			field.SqlType = "INTEGER(8)"
+		case reflect.Float32, reflect.Float64:
+			field.SqlType = "REAL"
+		case reflect.String:
+			field.SqlType = "TEXT(4096)"
+		default:
+			panic(fieldGoType)
+		}
+	} else {
+		field.SqlType = *flagType
+	}
+
+	field.IsPrimaryKey = *flagPrimaryKey
+	field.IsAutoIncrement = *flagAutoIncrement
+	field.IsUnique = *flagUnique
+	field.IsNotNull = *flagNotNull
+
+	if *flagDefault != "" {
+		field.ValueDefault = flagDefault
+	}
+
+	if *flagCheck != "" {
+		field.ValueCheck = flagCheck
+	}
+
+	return true
 }
 
 //--------------------------------------------------------------------------------//
@@ -45,8 +129,7 @@ type Table struct {
 	FieldNameArray []string               `json:"fieldNameArray"`
 	FieldMap       map[string]*TableField `json:"fieldMap"`
 
-	PrimaryKey    []string `json:"primaryKey"`
-	AutoIncrement *string  `json:"autoIncrement"`
+	AutoIncrement *TableField `json:"autoIncrement"`
 }
 
 func (table *Table) GetHash() string {
@@ -95,7 +178,7 @@ func (table *Table) GetStruct(tableStruct interface{}) (tableStructPtr interface
 
 //--------------------------------------------------------------------------------//
 
-func (table *Table) convertInterfaceToStructArray(value interface{}) (valueArray []interface{}, err error) {
+func (table *Table) convertInterfaceToInterfaceArray(value interface{}) (valueArray []interface{}, err error) {
 	valueReflectType := reflect.TypeOf(value)
 	valueReflectValue := reflect.ValueOf(value)
 
@@ -120,7 +203,6 @@ func (table *Table) convertInterfaceToStructArray(value interface{}) (valueArray
 
 		for i := 0; i < valueReflectValue.Len(); i++ {
 			if table.GoType != valueReflectValue.Index(i).Type() {
-				fmt.Println(table.GoType, valueReflectType, valueReflectValue.Index(i).Type())
 				err = errValueDoesNotMatchTableType
 				return
 			}
@@ -135,175 +217,208 @@ func (table *Table) convertInterfaceToStructArray(value interface{}) (valueArray
 //--------------------------------------------------------------------------------//
 
 func (table *Table) sqlCreateTable() (request []string, err error) {
-	fieldDeclarationArray := []string{}
+	sqlDeclarationArray := []string{}
 
 	for _, fieldName := range table.FieldNameArray {
 		tableField := table.FieldMap[fieldName]
 
-		fieldDeclaration := fmt.Sprintf("%s %s", tableField.SqlName, tableField.SqlType)
+		sqlDeclarationField := fmt.Sprintf("%s %s", tableField.SqlName, tableField.SqlType)
 
 		if tableField.IsPrimaryKey {
-			fieldDeclaration = fmt.Sprintf("%s %s", fieldDeclaration, "PRIMARY_KEY")
+			sqlDeclarationField = fmt.Sprintf("%s PRIMARY_KEY", sqlDeclarationField)
 		}
 
 		if tableField.IsAutoIncrement {
-			fieldDeclaration = fmt.Sprintf("%s %s", fieldDeclaration, "AUTO_INCREMENT")
-		}
-
-		if tableField.IsUnique {
-			fieldDeclaration = fmt.Sprintf("%s %s", fieldDeclaration, "UNIQUE")
+			sqlDeclarationField = fmt.Sprintf("%s AUTO_INCREMENT", sqlDeclarationField)
 		}
 
 		if tableField.IsNotNull {
-			fieldDeclaration = fmt.Sprintf("%s %s", fieldDeclaration, "NOT_NULL")
+			sqlDeclarationField = fmt.Sprintf("%s NOT_NULL", sqlDeclarationField)
 		}
 
-		fieldDeclarationArray = append(fieldDeclarationArray, fieldDeclaration)
+		if tableField.ValueDefault != nil && *tableField.ValueDefault != "" {
+			sqlDeclarationField = fmt.Sprintf("%s DEFAULT %s", sqlDeclarationField, *tableField.ValueDefault)
+		}
+
+		sqlDeclarationArray = append(sqlDeclarationArray, sqlDeclarationField)
+
+		if tableField.IsUnique {
+			sqlDeclarationArray = append(sqlDeclarationArray, fmt.Sprintf("CONSTRAINT %s_%s_uq UNIQUE(%s)", table.SqlName, tableField.SqlName, tableField.SqlName))
+		}
+
+		if tableField.ValueCheck != nil && *tableField.ValueCheck != "" {
+			sqlDeclarationArray = append(sqlDeclarationArray, fmt.Sprintf("CONSTRAINT %s_%s_ck CHECK(%s)", table.SqlName, tableField.SqlName, *tableField.ValueCheck))
+		}
 	}
 
-	request = append(request, fmt.Sprintf("CREATE TABLE IF NOT EXISTS %s (%s);", table.SqlName, strings.Join(fieldDeclarationArray, ", ")))
+	request = append(request, fmt.Sprintf("CREATE TABLE IF NOT EXISTS %s (%s);", table.SqlName, strings.Join(sqlDeclarationArray, ", ")))
 
 	return
 }
 
-func (table *Table) sqlInsertValue(valueArray []interface{}) (request []string, err error) {
-	fieldDeclarationArray := []string{}
-	fieldNameArray := []string{}
+func sqlFieldValueToString(goType reflect.Kind, reflectValue reflect.Value) (valueString string, err error) {
+	switch goType {
+	case reflect.Bool:
+		if reflectValue.Bool() {
+			valueString = "1"
+		} else {
+			valueString = "0"
+		}
+	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+		valueString = fmt.Sprintf("%d", reflectValue.Uint())
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+		valueString = fmt.Sprintf("%d", reflectValue.Int())
+	case reflect.Float32, reflect.Float64:
+		valueString = fmt.Sprintf("%f", reflectValue.Float())
+	case reflect.String:
+		valueString = fmt.Sprintf("\"%s\"", html.EscapeString(reflectValue.String()))
+	case reflect.Ptr:
+		if reflectValue.IsNil() {
+			valueString = "NULL"
+		} else {
+			valueString = fmt.Sprintf("\"%v\"", reflectValue.Elem())
+		}
+	default:
+		err = errValueDoesNotMatchTableType
+	}
 
+	return
+}
+
+func (table *Table) sqlInsertValue(valueArray []interface{}) ([]string, error) {
+	request := []string{}
+
+	fieldGoNameArray := []string{}
+	fieldSqlNameArray := []string{}
 	for _, fieldName := range table.FieldNameArray {
 		tableField := table.FieldMap[fieldName]
 
 		if !tableField.IsAutoIncrement {
-			fieldNameArray = append(fieldNameArray, tableField.GoName)
-			fieldDeclarationArray = append(fieldDeclarationArray, tableField.SqlName)
+			fieldGoNameArray = append(fieldGoNameArray, tableField.GoName)
+			fieldSqlNameArray = append(fieldSqlNameArray, tableField.SqlName)
 		}
 	}
-
-	valueDeclarationArray := []string{}
 
 	for _, valueUnit := range valueArray {
-		valueReflectType := reflect.TypeOf(valueUnit)
 		valueReflectValue := reflect.ValueOf(valueUnit)
 
-		if table.GoType == valueReflectType {
-			valueDeclaration := []string{}
+		valueFieldArray := []string{}
+		for _, fieldGoName := range fieldGoNameArray {
+			field := table.FieldMap[fieldGoName]
+			fieldValue := valueReflectValue.FieldByName(fieldGoName)
 
-			for _, fieldName := range fieldNameArray {
-				tableField := table.FieldMap[fieldName]
-				value := valueReflectValue.FieldByName(fieldName)
-				var valueString string
-
-				switch tableField.GoType {
-				case reflect.Bool:
-					if value.Bool() {
-						valueString = "0"
-					} else {
-						valueString = "1"
-					}
-				case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
-					valueString = fmt.Sprintf("%d", value.Uint())
-				case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-					valueString = fmt.Sprintf("%d", value.Int())
-				case reflect.Float32, reflect.Float64:
-					valueString = fmt.Sprintf("%f", value.Float())
-				case reflect.String:
-					valueString = fmt.Sprintf("\"%s\"", value.String())
-				default:
-					panic(tableField.GoType)
-				}
-
-				valueDeclaration = append(valueDeclaration, valueString)
+			fieldValueString, err := sqlFieldValueToString(field.GoType, fieldValue)
+			if err != nil {
+				return nil, err
 			}
 
-			valueDeclarationArray = append(valueDeclarationArray, fmt.Sprintf("(%s)", strings.Join(valueDeclaration, ", ")))
+			valueFieldArray = append(valueFieldArray, fieldValueString)
 		}
+
+		request = append(request, fmt.Sprintf("INSERT INTO %s (%s) VALUES (%s);", table.SqlName, strings.Join(fieldSqlNameArray, ", "), strings.Join(valueFieldArray, ", ")))
 	}
 
-	request = append(request, fmt.Sprintf("INSERT INTO %s (%s) VALUES %s;", table.SqlName, strings.Join(fieldDeclarationArray, ", "), strings.Join(valueDeclarationArray, ", ")))
-
-	return
+	return request, nil
 }
 
-func (table *Table) sqlUpdateValue(valueArray []interface{}) (request []string, err error) {
-	fieldNameArray := []string{}
+func (table *Table) sqlReplaceValue(valueArray []interface{}) ([]string, error) {
+	request := []string{}
 
+	fieldGoNameArray := []string{}
+	fieldSqlNameArray := []string{}
 	for _, fieldName := range table.FieldNameArray {
 		tableField := table.FieldMap[fieldName]
 
-		if !tableField.IsAutoIncrement {
-			fieldNameArray = append(fieldNameArray, tableField.GoName)
-		}
+		fieldGoNameArray = append(fieldGoNameArray, tableField.GoName)
+		fieldSqlNameArray = append(fieldSqlNameArray, tableField.SqlName)
 	}
 
-	valueDeclarationArray := []string{}
-
 	for _, valueUnit := range valueArray {
-		valueReflectType := reflect.TypeOf(valueUnit)
 		valueReflectValue := reflect.ValueOf(valueUnit)
 
-		if table.GoType == valueReflectType {
-			valueDeclaration := []string{}
+		valueFieldArray := []string{}
+		for _, fieldGoName := range fieldGoNameArray {
+			field := table.FieldMap[fieldGoName]
+			fieldValue := valueReflectValue.FieldByName(fieldGoName)
 
-			for _, fieldName := range fieldNameArray {
-				tableField := table.FieldMap[fieldName]
-				value := valueReflectValue.FieldByName(fieldName)
-				var valueString string
-
-				switch tableField.GoType {
-				case reflect.Bool:
-					if value.Bool() {
-						valueString = "0"
-					} else {
-						valueString = "1"
-					}
-				case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
-					valueString = fmt.Sprintf("%d", value.Uint())
-				case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-					valueString = fmt.Sprintf("%d", value.Int())
-				case reflect.Float32, reflect.Float64:
-					valueString = fmt.Sprintf("%f", value.Float())
-				case reflect.String:
-					valueString = fmt.Sprintf("\"%s\"", value.String())
-				default:
-					panic(tableField.GoType)
-				}
-
-				valueDeclaration = append(valueDeclaration, fmt.Sprintf("%s = %s", tableField.SqlName, valueString))
+			fieldValueString, err := sqlFieldValueToString(field.GoType, fieldValue)
+			if err != nil {
+				return nil, err
 			}
 
-			valueDeclarationArray = append(valueDeclarationArray, fmt.Sprintf("UPDATE %s SET %s WHERE %s = %d",
-				table.SqlName,
-				strings.Join(valueDeclaration, ", "),
-				table.FieldMap[*table.AutoIncrement].SqlName,
-				valueReflectValue.FieldByName(*table.AutoIncrement).Int()),
-			)
+			valueFieldArray = append(valueFieldArray, fieldValueString)
 		}
+
+		request = append(request, fmt.Sprintf("REPLACE INTO %s (%s) VALUES (%s);", table.SqlName, strings.Join(fieldSqlNameArray, ", "), strings.Join(valueFieldArray, ", ")))
 	}
 
-	request = append(request, valueDeclarationArray...)
-
-	return
+	return request, nil
 }
 
-func (table *Table) sqlDeleteValue(valueArray []interface{}) (request []string, err error) {
-	valueDeclarationArray := []string{}
+func (table *Table) sqlUpdateValue(valueArray []interface{}) ([]string, error) {
+	request := []string{}
+
+	if table.AutoIncrement == nil {
+		return nil, errTableDoesNotHaveAutoIncrement
+	}
+
+	fieldGoNameArray := []string{}
+	fieldSqlNameArray := []string{}
+	for _, fieldName := range table.FieldNameArray {
+		tableField := table.FieldMap[fieldName]
+
+		fieldGoNameArray = append(fieldGoNameArray, tableField.GoName)
+		fieldSqlNameArray = append(fieldSqlNameArray, tableField.SqlName)
+	}
+
+	for _, valueUnit := range valueArray {
+		valueReflectValue := reflect.ValueOf(valueUnit)
+
+		valueFieldSetArray := []string{}
+		for _, fieldGoName := range fieldGoNameArray {
+			field := table.FieldMap[fieldGoName]
+			fieldValue := valueReflectValue.FieldByName(fieldGoName)
+
+			fieldValueString, err := sqlFieldValueToString(field.GoType, fieldValue)
+			if err != nil {
+				return nil, err
+			}
+
+			valueFieldSetArray = append(valueFieldSetArray, fmt.Sprintf("%s = %s", field.SqlName, fieldValueString))
+		}
+
+		request = append(request, fmt.Sprintf("UPDATE %s SET %s WHERE %s = %d",
+			table.SqlName,
+			strings.Join(valueFieldSetArray, ", "),
+			table.AutoIncrement.SqlName,
+			valueReflectValue.FieldByName(table.AutoIncrement.GoName).Int()),
+		)
+	}
+
+	return request, nil
+}
+
+func (table *Table) sqlDeleteValue(valueArray []interface{}) ([]string, error) {
+	request := []string{}
+
+	if table.AutoIncrement == nil {
+		return nil, errTableDoesNotHaveAutoIncrement
+	}
 
 	for _, valueUnit := range valueArray {
 		valueReflectType := reflect.TypeOf(valueUnit)
 		valueReflectValue := reflect.ValueOf(valueUnit)
 
 		if table.GoType == valueReflectType {
-			valueDeclarationArray = append(valueDeclarationArray, fmt.Sprintf("DELETE FROM %s WHERE %s = %d",
+			request = append(request, fmt.Sprintf("DELETE FROM %s WHERE %s = %d",
 				table.SqlName,
-				table.FieldMap[*table.AutoIncrement].SqlName,
-				valueReflectValue.FieldByName(*table.AutoIncrement).Int()),
+				table.AutoIncrement.SqlName,
+				valueReflectValue.FieldByName(table.AutoIncrement.GoName).Int()),
 			)
 		}
 	}
 
-	request = append(request, valueDeclarationArray...)
-
-	return
+	return request, nil
 }
 
 //--------------------------------------------------------------------------------//
@@ -325,85 +440,27 @@ func NewTable(tableName string, tableStruct interface{}) (table *Table, err erro
 		FieldNameArray: []string{},
 		FieldMap:       map[string]*TableField{},
 
-		PrimaryKey:    []string{},
 		AutoIncrement: nil,
 	}
 
 	for fieldIndex := 0; fieldIndex < tableReflectType.NumField(); fieldIndex++ {
 		fieldReflectField := tableReflectType.Field(fieldIndex)
 
-		fieldReflectTag, ok := fieldReflectField.Tag.Lookup("sql")
-		if !ok {
-			continue
-		}
-		fieldReflectTagSlice := strings.Split(fieldReflectTag, ",")
-
-		for tagIndex, tagValue := range fieldReflectTagSlice {
-			fieldReflectTagSlice[tagIndex] = strings.Trim(tagValue, " ")
-
-		}
-
 		field := &TableField{
 			GoName: fieldReflectField.Name,
 			GoType: fieldReflectField.Type.Kind(),
 
 			SqlName: fieldReflectField.Name,
-			SqlType: "TEXT(4096)",
+			SqlType: "",
 		}
 
-		if len(fieldReflectTagSlice) > 0 {
-			field.SqlName = fieldReflectTagSlice[0]
-		}
-
-		if len(fieldReflectTagSlice) > 1 {
-			field.SqlType = fieldReflectTagSlice[1]
-		} else {
-			switch field.GoType {
-			case reflect.Bool:
-				field.SqlType = "INTEGER(1)"
-			case reflect.Uint, reflect.Int:
-				field.SqlType = "INTEGER(8)"
-			case reflect.Uint8, reflect.Int8:
-				field.SqlType = "INTEGER(1)"
-			case reflect.Uint16, reflect.Int16:
-				field.SqlType = "INTEGER(2)"
-			case reflect.Uint32, reflect.Int32:
-				field.SqlType = "INTEGER(4)"
-			case reflect.Uint64, reflect.Int64:
-				field.SqlType = "INTEGER(8)"
-			case reflect.Float32, reflect.Float64:
-				field.SqlType = "REAL"
-			case reflect.String:
-				field.SqlType = "TEXT(4096)"
-			default:
-				panic(field.GoType)
-			}
-		}
-
-		if len(fieldReflectTagSlice) > 2 {
-			for tagIndex := 2; tagIndex < len(fieldReflectTagSlice); tagIndex++ {
-				tagValue := fieldReflectTagSlice[tagIndex]
-
-				switch tagValue {
-				case "PRIMARY_KEY":
-					field.IsPrimaryKey = true
-				case "AUTO_INCREMENT":
-					field.IsAutoIncrement = true
-				case "UNIQUE":
-					field.IsUnique = true
-				case "NOT_NULL":
-					field.IsNotNull = true
-				}
-			}
-		}
-
-		if field.IsPrimaryKey {
-			table.PrimaryKey = append(table.PrimaryKey, field.GoName)
+		if !field.ReflectParse(fieldReflectField) {
+			continue
 		}
 
 		if field.IsAutoIncrement {
 			if table.AutoIncrement == nil {
-				table.AutoIncrement = &field.GoName
+				table.AutoIncrement = field
 			} else {
 				field.IsAutoIncrement = false
 			}
