@@ -201,6 +201,25 @@ func (db *DataBase) ExecWithTable(table *Table, handler func(*DataBase, *sql.Tx,
 // Table control
 //--------------------------------------------------------------------------------//
 
+func (db *DataBase) NewTable(tableName string, tableStruct interface{}) (*Table, error) {
+	var (
+		table *Table
+		err   error
+	)
+
+	table, err = NewTable(tableName, tableStruct)
+	if err != nil {
+		return nil, err
+	}
+
+	err = db.MigrationTable(table, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return table, nil
+}
+
 func (db *DataBase) sqlCreateTable(table *Table) (request []string, err error) {
 	request, err = table.sqlCreateTable()
 	if err != nil {
@@ -265,7 +284,7 @@ func (db *DataBase) DropTable(table *Table) error {
 	}
 
 	requestArray := []string{
-		fmt.Sprintf("DROP TABLE IF EXISTS %s;", table.SqlName),
+		fmt.Sprintf("DROP TABLE IF EXISTS `%s`;", table.SqlName),
 	}
 
 	err := db.Exec(func(db *DataBase, sqlTx *sql.Tx) (err error) {
@@ -318,7 +337,7 @@ func MigrationTableAuto(tableA, tableB *Table) (string, error) {
 		return "", fmt.Errorf("auto migration unsupported")
 	}
 
-	return fmt.Sprintf("INSERT INTO %s (%s) SELECT %s FROM %s;",
+	return fmt.Sprintf("INSERT INTO `%s` (%s) SELECT %s FROM `%s`;",
 		tableB.SqlName,
 		strings.Join(fieldBNameArray, ", "),
 		strings.Join(fieldANameArray, ", "),
@@ -365,7 +384,7 @@ func (db *DataBase) MigrationTable(table *Table, handler func(*Table, *Table) (s
 	}
 	requestArray = append(requestArray, requestUnit)
 
-	requestArray = append(requestArray, fmt.Sprintf("DROP TABLE %s;", tableA.SqlName))
+	requestArray = append(requestArray, fmt.Sprintf("DROP TABLE `%s`;", tableA.SqlName))
 
 	requestArray = append(requestArray, fmt.Sprintf("ALTER TABLE `%s` RENAME TO `%s`;", tableB_Migration_SqlName, tableB_Rename_SqlName))
 

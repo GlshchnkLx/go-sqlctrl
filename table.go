@@ -168,8 +168,8 @@ func (table *Table) GetStruct(tableStruct interface{}) (tableStructPtr interface
 
 	tableStructPtr = tableReflectValue.Addr().Interface()
 
-	for fieldIndex := 0; fieldIndex < tableReflectType.NumField(); fieldIndex++ {
-		fieldReflectValue := tableReflectValue.Field(fieldIndex)
+	for _, fieldName := range table.FieldNameArray {
+		fieldReflectValue := tableReflectValue.FieldByName(fieldName)
 		fieldArrayPtr = append(fieldArrayPtr, fieldReflectValue.Addr().Interface())
 	}
 
@@ -241,6 +241,10 @@ func (table *Table) sqlCreateTable() (request []string, err error) {
 		}
 
 		sqlDeclarationArray = append(sqlDeclarationArray, sqlDeclarationField)
+	}
+
+	for _, fieldName := range table.FieldNameArray {
+		tableField := table.FieldMap[fieldName]
 
 		if tableField.IsUnique {
 			sqlDeclarationArray = append(sqlDeclarationArray, fmt.Sprintf("CONSTRAINT %s_%s_uq UNIQUE(%s)", table.SqlName, tableField.SqlName, tableField.SqlName))
@@ -251,7 +255,7 @@ func (table *Table) sqlCreateTable() (request []string, err error) {
 		}
 	}
 
-	request = append(request, fmt.Sprintf("CREATE TABLE IF NOT EXISTS %s (%s);", table.SqlName, strings.Join(sqlDeclarationArray, ", ")))
+	request = append(request, fmt.Sprintf("CREATE TABLE IF NOT EXISTS `%s` (%s);", table.SqlName, strings.Join(sqlDeclarationArray, ", ")))
 
 	return
 }
@@ -315,7 +319,7 @@ func (table *Table) sqlInsertValue(valueArray []interface{}) ([]string, error) {
 			valueFieldArray = append(valueFieldArray, fieldValueString)
 		}
 
-		request = append(request, fmt.Sprintf("INSERT INTO %s (%s) VALUES (%s);", table.SqlName, strings.Join(fieldSqlNameArray, ", "), strings.Join(valueFieldArray, ", ")))
+		request = append(request, fmt.Sprintf("INSERT INTO `%s` (%s) VALUES (%s);", table.SqlName, strings.Join(fieldSqlNameArray, ", "), strings.Join(valueFieldArray, ", ")))
 	}
 
 	return request, nil
@@ -349,7 +353,7 @@ func (table *Table) sqlReplaceValue(valueArray []interface{}) ([]string, error) 
 			valueFieldArray = append(valueFieldArray, fieldValueString)
 		}
 
-		request = append(request, fmt.Sprintf("REPLACE INTO %s (%s) VALUES (%s);", table.SqlName, strings.Join(fieldSqlNameArray, ", "), strings.Join(valueFieldArray, ", ")))
+		request = append(request, fmt.Sprintf("REPLACE INTO `%s` (%s) VALUES (%s);", table.SqlName, strings.Join(fieldSqlNameArray, ", "), strings.Join(valueFieldArray, ", ")))
 	}
 
 	return request, nil
@@ -387,7 +391,7 @@ func (table *Table) sqlUpdateValue(valueArray []interface{}) ([]string, error) {
 			valueFieldSetArray = append(valueFieldSetArray, fmt.Sprintf("%s = %s", field.SqlName, fieldValueString))
 		}
 
-		request = append(request, fmt.Sprintf("UPDATE %s SET %s WHERE %s = %d",
+		request = append(request, fmt.Sprintf("UPDATE `%s` SET %s WHERE %s = %d",
 			table.SqlName,
 			strings.Join(valueFieldSetArray, ", "),
 			table.AutoIncrement.SqlName,
@@ -410,7 +414,7 @@ func (table *Table) sqlDeleteValue(valueArray []interface{}) ([]string, error) {
 		valueReflectValue := reflect.ValueOf(valueUnit)
 
 		if table.GoType == valueReflectType {
-			request = append(request, fmt.Sprintf("DELETE FROM %s WHERE %s = %d",
+			request = append(request, fmt.Sprintf("DELETE FROM `%s` WHERE %s = %d",
 				table.SqlName,
 				table.AutoIncrement.SqlName,
 				valueReflectValue.FieldByName(table.AutoIncrement.GoName).Int()),
