@@ -140,6 +140,34 @@ func (db *DataBase) Query(table *Table, request string) (response interface{}, e
 	return
 }
 
+func (db *DataBase) QuerySingle(table *Table, request string) (response interface{}, err error) {
+	var (
+		responseArray             interface{}
+		responseArrayReflectValue reflect.Value
+	)
+
+	responseArray, err = db.Query(table, request)
+	if err != nil {
+		return
+	}
+
+	responseArrayReflectValue = reflect.ValueOf(responseArray).Convert(reflect.SliceOf(table.GoType))
+
+	switch responseArrayReflectValue.Len() {
+	case 0:
+		err = errResponseLessThanRequested
+		return
+	case 1:
+	default:
+		err = errResponseMoreThanRequested
+		return
+	}
+
+	response = responseArrayReflectValue.Index(0).Interface()
+
+	return
+}
+
 func (db *DataBase) QueryWithTable(table *Table, request string) (response interface{}, err error) {
 	if !db.CheckExistTable(table) {
 		return nil, errTableDoesNotExists
@@ -150,6 +178,18 @@ func (db *DataBase) QueryWithTable(table *Table, request string) (response inter
 	}
 
 	return db.Query(table, request)
+}
+
+func (db *DataBase) QuerySingleWithTable(table *Table, request string) (response interface{}, err error) {
+	if !db.CheckExistTable(table) {
+		return nil, errTableDoesNotExists
+	}
+
+	if db.CheckHashTable(table) {
+		return nil, errTableDoesNotMigtated
+	}
+
+	return db.QuerySingle(table, request)
 }
 
 func (db *DataBase) Exec(handler func(*DataBase, *sql.Tx) error) (err error) {
@@ -463,8 +503,27 @@ func (db *DataBase) GetLastId(table *Table) (id int64, err error) {
 	return
 }
 
-func (db *DataBase) SelectValue(table *Table, request string) (response interface{}, err error) {
-	response, err = db.QueryWithTable(table, request)
+func (db *DataBase) SelectValue(table *Table, where string) (response interface{}, err error) {
+	response, err = db.QueryWithTable(table, fmt.Sprintf("SELECT * FROM `%s` WHERE %s;", table.SqlName, where))
+	return
+}
+
+func (db *DataBase) SelectValueSingle(table *Table, where string) (response interface{}, err error) {
+	response, err = db.QuerySingleWithTable(table, fmt.Sprintf("SELECT * FROM `%s` WHERE %s;", table.SqlName, where))
+	return
+}
+
+func (db *DataBase) SelectValueById(table *Table, id int64) (response interface{}, err error) {
+	if table.AutoIncrement == nil {
+		err = errTableDoesNotHaveAutoIncrement
+		return
+	}
+
+	response, err = db.SelectValueSingle(table, fmt.Sprintf("`%s` = %d;", table.AutoIncrement.SqlName, id))
+	if err != nil {
+		return
+	}
+
 	return
 }
 

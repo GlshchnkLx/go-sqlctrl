@@ -20,4 +20,7 @@ var (
 	errTableDidNotReplaceTheValue    = fmt.Errorf("table did not replace the value")
 	errTableDidNotUpdateTheValue     = fmt.Errorf("table did not update the value")
 	errTableDidNotDeleteTheValue     = fmt.Errorf("table did not delete the value")
+
+	errResponseLessThanRequested = fmt.Errorf("response less than requested")
+	errResponseMoreThanRequested = fmt.Errorf("response more than requested")
 )
