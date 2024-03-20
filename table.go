@@ -156,7 +156,7 @@ func (table *Table) GetStruct(tableStruct interface{}) (tableStructPtr interface
 			tableReflectValue = reflect.New(tableReflectType).Elem()
 			tableReflectValue.Set(reflect.ValueOf(tableStruct))
 		default:
-			err = errValueMustBeAStructureOrPointer
+			err = ErrValueMustBeAStructureOrPointer
 			return
 		}
 
@@ -190,7 +190,7 @@ func (table *Table) convertInterfaceToInterfaceArray(value interface{}) (valueAr
 	switch valueReflectType.Kind() {
 	case reflect.Struct:
 		if table.GoType != valueReflectType {
-			err = errValueDoesNotMatchTableType
+			err = ErrValueDoesNotMatchTableType
 			return
 		}
 
@@ -203,7 +203,7 @@ func (table *Table) convertInterfaceToInterfaceArray(value interface{}) (valueAr
 
 		for i := 0; i < valueReflectValue.Len(); i++ {
 			if table.GoType != valueReflectValue.Index(i).Type() {
-				err = errValueDoesNotMatchTableType
+				err = ErrValueDoesNotMatchTableType
 				return
 			}
 
@@ -283,7 +283,7 @@ func sqlFieldValueToString(goType reflect.Kind, reflectValue reflect.Value) (val
 			valueString = fmt.Sprintf("\"%v\"", reflectValue.Elem())
 		}
 	default:
-		err = errValueDoesNotMatchTableType
+		err = ErrValueDoesNotMatchTableType
 	}
 
 	return
@@ -363,7 +363,7 @@ func (table *Table) sqlUpdateValue(valueArray []interface{}) ([]string, error) {
 	request := []string{}
 
 	if table.AutoIncrement == nil {
-		return nil, errTableDoesNotHaveAutoIncrement
+		return nil, ErrTableDoesNotHaveAutoIncrement
 	}
 
 	fieldGoNameArray := []string{}
@@ -406,7 +406,7 @@ func (table *Table) sqlDeleteValue(valueArray []interface{}) ([]string, error) {
 	request := []string{}
 
 	if table.AutoIncrement == nil {
-		return nil, errTableDoesNotHaveAutoIncrement
+		return nil, ErrTableDoesNotHaveAutoIncrement
 	}
 
 	for _, valueUnit := range valueArray {
@@ -431,7 +431,7 @@ func NewTable(tableName string, tableStruct interface{}) (table *Table, err erro
 	tableReflectType := reflect.TypeOf(tableStruct)
 
 	if tableReflectType.Kind() != reflect.Struct {
-		err = errValueMustBeAStructure
+		err = ErrValueMustBeAStructure
 		return
 	}
 
