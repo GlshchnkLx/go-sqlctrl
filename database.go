@@ -3,6 +3,7 @@ package sqlctrl
 import (
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"reflect"
@@ -709,6 +710,18 @@ func (db *DataBase) DeleteValue(table *Table, value interface{}) error {
 //--------------------------------------------------------------------------------//
 
 func NewDatabase(sqlDriver, sqlSource, sqlScheme string) (*DataBase, error) {
+	if len(sqlDriver) == 0 {
+		return nil, errors.New("NewDatabase: empty sqlDriver param string")
+	}
+
+	if len(sqlSource) == 0 {
+		return nil, errors.New("NewDatabase: empty sqlSource param string")
+	}
+
+	if len(sqlScheme) == 0 {
+		return nil, errors.New("NewDatabase: empty sqlScheme param string")
+	}
+
 	var (
 		db = &DataBase{
 			mutex: make(chan interface{}, 1),
