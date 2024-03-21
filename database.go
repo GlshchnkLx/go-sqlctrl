@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"reflect"
 	"regexp"
@@ -743,13 +744,16 @@ func NewDatabase(sqlDriver, sqlSource, sqlScheme string) (*DataBase, error) {
 
 	err = db.schemeImport()
 	if err != nil {
-		if strings.Contains(err.Error(), "no such file or directory") {
+		ierr, ok := err.(*fs.PathError)
+		if !ok {
+			return nil, err
+		}
+
+		if ierr.Op == "open" && os.IsNotExist(ierr) {
 			err = db.schemeExport()
 			if err != nil {
 				return nil, err
 			}
-		} else {
-			return nil, err
 		}
 	}
 
