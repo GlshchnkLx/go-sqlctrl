@@ -135,3 +135,8 @@ func main() {
 	}
 }
 ```
+
+## Testing
+```
+go test -v
+```

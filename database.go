@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"io/fs"
 	"os"
 	"reflect"
 	"regexp"
@@ -155,11 +156,11 @@ func (db *DataBase) QuerySingle(table *Table, request string) (response interfac
 
 	switch responseArrayReflectValue.Len() {
 	case 0:
-		err = errResponseLessThanRequested
+		err = ErrResponseLessThanRequested
 		return
 	case 1:
 	default:
-		err = errResponseMoreThanRequested
+		err = ErrResponseMoreThanRequested
 		return
 	}
 
@@ -170,11 +171,11 @@ func (db *DataBase) QuerySingle(table *Table, request string) (response interfac
 
 func (db *DataBase) QueryWithTable(table *Table, request string) (response interface{}, err error) {
 	if !db.CheckExistTable(table) {
-		return nil, errTableDoesNotExists
+		return nil, ErrTableDoesNotExists
 	}
 
 	if db.CheckHashTable(table) {
-		return nil, errTableDoesNotMigtated
+		return nil, ErrTableDoesNotMigtated
 	}
 
 	return db.Query(table, request)
@@ -182,11 +183,11 @@ func (db *DataBase) QueryWithTable(table *Table, request string) (response inter
 
 func (db *DataBase) QuerySingleWithTable(table *Table, request string) (response interface{}, err error) {
 	if !db.CheckExistTable(table) {
-		return nil, errTableDoesNotExists
+		return nil, ErrTableDoesNotExists
 	}
 
 	if db.CheckHashTable(table) {
-		return nil, errTableDoesNotMigtated
+		return nil, ErrTableDoesNotMigtated
 	}
 
 	return db.QuerySingle(table, request)
@@ -223,11 +224,11 @@ func (db *DataBase) Exec(handler func(*DataBase, *sql.Tx) error) (err error) {
 
 func (db *DataBase) ExecWithTable(table *Table, handler func(*DataBase, *sql.Tx, *Table) error) (err error) {
 	if !db.CheckExistTable(table) {
-		return errTableDoesNotExists
+		return ErrTableDoesNotExists
 	}
 
 	if db.CheckHashTable(table) {
-		return errTableDoesNotMigtated
+		return ErrTableDoesNotMigtated
 	}
 
 	err = db.Exec(func(db *DataBase, sqlTx *sql.Tx) error {
@@ -288,7 +289,7 @@ func (db *DataBase) sqlCreateTable(table *Table) (request []string, err error) {
 
 func (db *DataBase) CreateTable(table *Table) error {
 	if db.CheckExistTable(table) {
-		return errTableAlreadyExists
+		return ErrTableAlreadyExists
 	}
 
 	requestArray, err := db.sqlCreateTable(table)
@@ -320,7 +321,7 @@ func (db *DataBase) CreateTable(table *Table) error {
 
 func (db *DataBase) DropTable(table *Table) error {
 	if !db.CheckExistTable(table) {
-		return errTableDoesNotExists
+		return ErrTableDoesNotExists
 	}
 
 	requestArray := []string{
@@ -457,12 +458,12 @@ func (db *DataBase) MigrationTable(table *Table, handler func(*Table, *Table) (s
 
 func (db *DataBase) GetCount(table *Table) (count int64, err error) {
 	if table == nil {
-		err = errTableIsNull
+		err = ErrTableIsNull
 		return
 	}
 
 	if table.AutoIncrement == nil {
-		err = errTableDoesNotHaveAutoIncrement
+		err = ErrTableDoesNotHaveAutoIncrement
 		return
 	}
 
@@ -483,12 +484,12 @@ func (db *DataBase) GetCount(table *Table) (count int64, err error) {
 
 func (db *DataBase) GetLastId(table *Table) (id int64, err error) {
 	if table == nil {
-		err = errTableIsNull
+		err = ErrTableIsNull
 		return
 	}
 
 	if table.AutoIncrement == nil {
-		err = errTableDoesNotHaveAutoIncrement
+		err = ErrTableDoesNotHaveAutoIncrement
 		return
 	}
 
@@ -515,7 +516,7 @@ func (db *DataBase) SelectValueSingle(table *Table, where string) (response inte
 
 func (db *DataBase) SelectValueById(table *Table, id int64) (response interface{}, err error) {
 	if table.AutoIncrement == nil {
-		err = errTableDoesNotHaveAutoIncrement
+		err = ErrTableDoesNotHaveAutoIncrement
 		return
 	}
 
@@ -565,7 +566,7 @@ func (db *DataBase) InsertValue(table *Table, value interface{}) (lastId int64, 
 		}
 
 		if (insertedLastId - tableLastId) < int64(len(valueArray)) {
-			err = errTableDidNotInsertTheValue
+			err = ErrTableDidNotInsertTheValue
 			return
 		}
 
@@ -611,7 +612,7 @@ func (db *DataBase) ReplaceValue(table *Table, value interface{}) error {
 		}
 
 		if replacedCount < int64(len(valueArray)) {
-			err = errTableDidNotReplaceTheValue
+			err = ErrTableDidNotReplaceTheValue
 			return
 		}
 
@@ -655,7 +656,7 @@ func (db *DataBase) UpdateValue(table *Table, value interface{}) error {
 		}
 
 		if updatedCount != int64(len(valueArray)) {
-			err = errTableDidNotUpdateTheValue
+			err = ErrTableDidNotUpdateTheValue
 			return
 		}
 
@@ -698,7 +699,7 @@ func (db *DataBase) DeleteValue(table *Table, value interface{}) error {
 		}
 
 		if deletedCount != int64(len(valueArray)) {
-			err = errTableDidNotDeleteTheValue
+			err = ErrTableDidNotDeleteTheValue
 			return
 		}
 
@@ -708,7 +709,14 @@ func (db *DataBase) DeleteValue(table *Table, value interface{}) error {
 
 //--------------------------------------------------------------------------------//
 
+// Creates a Database object specified by its database driver name
+// and a driver-specific data source name. If sqlScheme file path exists
+// imports provided database schema otherwise exports it.
 func NewDatabase(sqlDriver, sqlSource, sqlScheme string) (*DataBase, error) {
+	if len(sqlDriver) == 0 || len(sqlSource) == 0 || len(sqlScheme) == 0 {
+		return nil, ErrInvalidArgument
+	}
+
 	var (
 		db = &DataBase{
 			mutex: make(chan interface{}, 1),
@@ -730,13 +738,16 @@ func NewDatabase(sqlDriver, sqlSource, sqlScheme string) (*DataBase, error) {
 
 	err = db.schemeImport()
 	if err != nil {
-		if strings.Contains(err.Error(), "no such file or directory") {
+		ierr, ok := err.(*fs.PathError)
+		if !ok {
+			return nil, err
+		}
+
+		if ierr.Op == "open" && os.IsNotExist(ierr) {
 			err = db.schemeExport()
 			if err != nil {
 				return nil, err
 			}
-		} else {
-			return nil, err
 		}
 	}
 
