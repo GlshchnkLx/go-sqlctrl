@@ -10,6 +10,7 @@ var (
 )
 
 var (
+	ErrInvalidArgument      = fmt.Errorf("invalid argument received")
 	ErrTableIsNull          = fmt.Errorf("table is null")
 	ErrTableAlreadyExists   = fmt.Errorf("table already exists")
 	ErrTableDoesNotExists   = fmt.Errorf("table does not exists")
