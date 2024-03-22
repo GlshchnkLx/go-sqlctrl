@@ -427,6 +427,11 @@ func (table *Table) sqlDeleteValue(valueArray []interface{}) ([]string, error) {
 
 //--------------------------------------------------------------------------------//
 
+// Creates a Table object with specified tableName and tableStruct.
+// If tableName is not an empty string then it used as table name for sql queries
+// in table methods. A tableStruct object must be a some custom struct object
+// otherwise ErrValueMustBeAStructure will be returned. Each field of tableStruct
+// is parsed and saved in Table object for future use.
 func NewTable(tableName string, tableStruct interface{}) (table *Table, err error) {
 	if tableStruct == nil {
 		err = ErrInvalidArgument
