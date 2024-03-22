@@ -428,6 +428,11 @@ func (table *Table) sqlDeleteValue(valueArray []interface{}) ([]string, error) {
 //--------------------------------------------------------------------------------//
 
 func NewTable(tableName string, tableStruct interface{}) (table *Table, err error) {
+	if tableStruct == nil {
+		err = ErrInvalidArgument
+		return
+	}
+
 	tableReflectType := reflect.TypeOf(tableStruct)
 
 	if tableReflectType.Kind() != reflect.Struct {
