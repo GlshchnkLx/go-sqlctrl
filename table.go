@@ -39,6 +39,10 @@ func (field *TableField) GetHash() string {
 	return hex.EncodeToString(tableHash[:])
 }
 
+// Parses given struct field. Return value is true if operation was successful.
+// This method tries to parse struct field tag at first. If NAME or TYPE was
+// not found in tag then it retrives appropriate info from field throught
+// reflection.
 func (field *TableField) ReflectParse(reflectStructField reflect.StructField) bool {
 	reflectStructFieldTag := reflectStructField.Tag
 
