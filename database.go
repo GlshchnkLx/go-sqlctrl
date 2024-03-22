@@ -710,6 +710,9 @@ func (db *DataBase) DeleteValue(table *Table, value interface{}) error {
 
 //--------------------------------------------------------------------------------//
 
+// Creates a Database object specified by its database driver name
+// and a driver-specific data source name. If sqlScheme file path exists
+// imports provided database schema otherwise exports it.
 func NewDatabase(sqlDriver, sqlSource, sqlScheme string) (*DataBase, error) {
 	if len(sqlDriver) == 0 {
 		return nil, errors.New("NewDatabase: empty sqlDriver param string")
