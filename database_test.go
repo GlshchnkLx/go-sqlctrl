@@ -1,6 +1,7 @@
 package sqlctrl
 
 import (
+	"os"
 	"testing"
 
 	_ "github.com/go-sql-driver/mysql"
@@ -11,6 +12,14 @@ func TestNewDatabase(t *testing.T) {
 	sqlDriver := "sqlite"
 	sqlSource := "./test.db"
 	sqlScheme := "./test.json"
+
+	if _, err := os.Stat(sqlScheme); os.IsExist(err) { // if sqlScheme file already exist
+		err = os.Remove(sqlScheme)
+		if err != nil {
+			t.Errorf("os.Remove(sqlScheme) error: %v", err)
+			t.FailNow()
+		}
+	}
 
 	db, err := NewDatabase(sqlDriver, sqlSource, sqlScheme)
 	if err != nil {
@@ -28,5 +37,10 @@ func TestNewDatabase(t *testing.T) {
 
 	if db.sqlScheme != sqlScheme {
 		t.Errorf("db.sqlScheme != sqlScheme")
+	}
+
+	if _, err := os.Stat(sqlScheme); os.IsNotExist(err) { // if sqlScheme file does not exist
+		t.Errorf("sqlScheme file is not created: %v", err)
+		t.FailNow()
 	}
 }
