@@ -44,3 +44,93 @@ func TestNewDatabase(t *testing.T) {
 		t.FailNow()
 	}
 }
+
+func TestCheckExistTable(t *testing.T) {
+	type TestTable struct {
+		ParamA int64  `sql:"NAME=paramA, TYPE=INTEGER, PRIMARY_KEY, AUTO_INCREMENT"`
+		ParamB string `sql:"NAME=paramB, TYPE=TEXT(32)"`
+	}
+
+	sqlDriver := "sqlite"
+	sqlSource := "./test.db"
+	sqlScheme := "./test.json"
+
+	db, err := NewDatabase(sqlDriver, sqlSource, sqlScheme)
+	if err != nil {
+		t.Errorf("NewDatabase error: %v", err)
+		t.FailNow()
+	}
+
+	table, err := NewTable("test_table", TestTable{})
+	if err != nil {
+		t.Errorf("NewTable error: %v", err)
+		t.FailNow()
+	}
+
+	if db.CheckExistTable(table) {
+		t.Errorf("table already exist")
+		t.FailNow()
+	}
+
+	err = db.CreateTable(table)
+	if err != nil {
+		t.Errorf("db.CreateTable error: %v", err)
+		t.FailNow()
+	}
+
+	if !db.CheckExistTable(table) {
+		t.Errorf("table does not exist")
+		t.FailNow()
+	}
+
+	err = db.DropTable(table)
+	if err != nil {
+		t.Errorf("db.DropTable error: %v", err)
+		t.FailNow()
+	}
+}
+
+func TestCreateTable(t *testing.T) {
+	type TestTable struct {
+		ParamA int64  `sql:"NAME=paramA, TYPE=INTEGER, PRIMARY_KEY, AUTO_INCREMENT"`
+		ParamB string `sql:"NAME=paramB, TYPE=TEXT(32)"`
+	}
+
+	sqlDriver := "sqlite"
+	sqlSource := "./test.db"
+	sqlScheme := "./test.json"
+
+	db, err := NewDatabase(sqlDriver, sqlSource, sqlScheme)
+	if err != nil {
+		t.Errorf("NewDatabase error: %v", err)
+		t.FailNow()
+	}
+
+	table, err := NewTable("test_table", TestTable{})
+	if err != nil {
+		t.Errorf("NewTable error: %v", err)
+		t.FailNow()
+	}
+
+	if db.CheckExistTable(table) {
+		t.Errorf("table already exist")
+		t.FailNow()
+	}
+
+	err = db.CreateTable(table)
+	if err != nil {
+		t.Errorf("db.CreateTable error: %v", err)
+		t.FailNow()
+	}
+
+	if !db.CheckExistTable(table) {
+		t.Errorf("table does not exist")
+		t.FailNow()
+	}
+
+	err = db.DropTable(table)
+	if err != nil {
+		t.Errorf("db.DropTable error: %v", err)
+		t.FailNow()
+	}
+}
