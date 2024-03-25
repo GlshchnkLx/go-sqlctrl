@@ -71,6 +71,10 @@ func (db *DataBase) schemeExport() error {
 
 // Checks if received table exist in database object
 func (db *DataBase) CheckExistTable(table *Table) bool {
+	if table == nil {
+		return false
+	}
+
 	db.schemeMutex <- true
 	schemeTable := db.scheme[table.GoName]
 	<-db.schemeMutex
@@ -100,6 +104,11 @@ func (db *DataBase) Query(table *Table, request string) (response interface{}, e
 		structPtr     interface{}
 		fieldArrayPtr []interface{}
 	)
+
+	if table == nil || len(request) == 0 {
+		err = ErrInvalidArgument
+		return
+	}
 
 	db.mutex <- true
 	defer func() {
@@ -149,6 +158,11 @@ func (db *DataBase) QuerySingle(table *Table, request string) (response interfac
 		responseArrayReflectValue reflect.Value
 	)
 
+	if table == nil || len(request) == 0 {
+		err = ErrInvalidArgument
+		return
+	}
+
 	responseArray, err = db.Query(table, request)
 	if err != nil {
 		return
@@ -172,6 +186,10 @@ func (db *DataBase) QuerySingle(table *Table, request string) (response interfac
 }
 
 func (db *DataBase) QueryWithTable(table *Table, request string) (response interface{}, err error) {
+	if table == nil || len(request) == 0 {
+		return nil, ErrInvalidArgument
+	}
+
 	if !db.CheckExistTable(table) {
 		return nil, ErrTableDoesNotExists
 	}
@@ -184,6 +202,10 @@ func (db *DataBase) QueryWithTable(table *Table, request string) (response inter
 }
 
 func (db *DataBase) QuerySingleWithTable(table *Table, request string) (response interface{}, err error) {
+	if table == nil || len(request) == 0 {
+		return nil, ErrInvalidArgument
+	}
+
 	if !db.CheckExistTable(table) {
 		return nil, ErrTableDoesNotExists
 	}
@@ -199,6 +221,11 @@ func (db *DataBase) Exec(handler func(*DataBase, *sql.Tx) error) (err error) {
 	var (
 		sqlTx *sql.Tx
 	)
+
+	if handler == nil {
+		err = ErrInvalidArgument
+		return
+	}
 
 	db.mutex <- true
 	defer func() {
@@ -225,6 +252,10 @@ func (db *DataBase) Exec(handler func(*DataBase, *sql.Tx) error) (err error) {
 }
 
 func (db *DataBase) ExecWithTable(table *Table, handler func(*DataBase, *sql.Tx, *Table) error) (err error) {
+	if table == nil || handler == nil {
+		return ErrInvalidArgument
+	}
+
 	if !db.CheckExistTable(table) {
 		return ErrTableDoesNotExists
 	}
@@ -250,6 +281,10 @@ func (db *DataBase) NewTable(tableName string, tableStruct interface{}) (*Table,
 		err   error
 	)
 
+	if len(tableName) == 0 || tableStruct == nil {
+		return nil, ErrInvalidArgument
+	}
+
 	table, err = NewTable(tableName, tableStruct)
 	if err != nil {
 		return nil, err
@@ -264,6 +299,11 @@ func (db *DataBase) NewTable(tableName string, tableStruct interface{}) (*Table,
 }
 
 func (db *DataBase) sqlCreateTable(table *Table) (request []string, err error) {
+	if table == nil {
+		err = ErrInvalidArgument
+		return
+	}
+
 	request, err = table.sqlCreateTable()
 	if err != nil {
 		return
@@ -292,6 +332,10 @@ func (db *DataBase) sqlCreateTable(table *Table) (request []string, err error) {
 // Creates table argument in current database.
 // Saves table object in database scheme map
 func (db *DataBase) CreateTable(table *Table) error {
+	if table == nil {
+		return ErrInvalidArgument
+	}
+
 	if db.CheckExistTable(table) {
 		return ErrTableAlreadyExists
 	}
@@ -325,6 +369,10 @@ func (db *DataBase) CreateTable(table *Table) error {
 
 // Drops specified table in database and removes from database object.
 func (db *DataBase) DropTable(table *Table) error {
+	if table == nil {
+		return ErrInvalidArgument
+	}
+
 	if !db.CheckExistTable(table) {
 		return ErrTableDoesNotExists
 	}
@@ -356,6 +404,10 @@ func (db *DataBase) DropTable(table *Table) error {
 }
 
 func MigrationTableAuto(tableA, tableB *Table) (string, error) {
+	if tableA == nil || tableB == nil {
+		return "", ErrInvalidArgument
+	}
+
 	fieldNameMap := map[string]int{}
 
 	for _, fieldName := range tableA.FieldNameArray {
@@ -397,6 +449,10 @@ func (db *DataBase) MigrationTable(table *Table, handler func(*Table, *Table) (s
 		requestArray []string
 		err          error
 	)
+
+	if table == nil {
+		return ErrInvalidArgument
+	}
 
 	if !db.CheckExistTable(table) {
 		return db.CreateTable(table)
@@ -510,16 +566,31 @@ func (db *DataBase) GetLastId(table *Table) (id int64, err error) {
 }
 
 func (db *DataBase) SelectValue(table *Table, where string) (response interface{}, err error) {
+	if table == nil || len(where) == 0 {
+		err = ErrInvalidArgument
+		return
+	}
+
 	response, err = db.QueryWithTable(table, fmt.Sprintf("SELECT * FROM `%s` WHERE %s;", table.SqlName, where))
 	return
 }
 
 func (db *DataBase) SelectValueSingle(table *Table, where string) (response interface{}, err error) {
+	if table == nil || len(where) == 0 {
+		err = ErrInvalidArgument
+		return
+	}
+
 	response, err = db.QuerySingleWithTable(table, fmt.Sprintf("SELECT * FROM `%s` WHERE %s;", table.SqlName, where))
 	return
 }
 
 func (db *DataBase) SelectValueById(table *Table, id int64) (response interface{}, err error) {
+	if table == nil || id < 0 {
+		err = ErrInvalidArgument
+		return
+	}
+
 	if table.AutoIncrement == nil {
 		err = ErrTableDoesNotHaveAutoIncrement
 		return
@@ -534,6 +605,11 @@ func (db *DataBase) SelectValueById(table *Table, id int64) (response interface{
 }
 
 func (db *DataBase) InsertValue(table *Table, value interface{}) (lastId int64, err error) {
+	if table == nil || value == nil {
+		err = ErrInvalidArgument
+		return
+	}
+
 	err = db.ExecWithTable(table, func(db *DataBase, sqlTx *sql.Tx, table *Table) (err error) {
 		var (
 			tableLastId    int64
@@ -542,6 +618,11 @@ func (db *DataBase) InsertValue(table *Table, value interface{}) (lastId int64, 
 			requestArray   []string
 			sqlResult      sql.Result
 		)
+
+		if db == nil || sqlTx == nil || table == nil {
+			err = ErrInvalidArgument
+			return
+		}
 
 		valueArray, err = table.convertInterfaceToInterfaceArray(value)
 		if err != nil {
@@ -583,6 +664,10 @@ func (db *DataBase) InsertValue(table *Table, value interface{}) (lastId int64, 
 }
 
 func (db *DataBase) ReplaceValue(table *Table, value interface{}) error {
+	if table == nil || value == nil {
+		return ErrInvalidArgument
+	}
+
 	return db.ExecWithTable(table, func(db *DataBase, sqlTx *sql.Tx, table *Table) (err error) {
 		var (
 			replacedCount int64
@@ -591,6 +676,11 @@ func (db *DataBase) ReplaceValue(table *Table, value interface{}) error {
 			requestArray  []string
 			sqlResult     sql.Result
 		)
+
+		if db == nil || sqlTx == nil || table == nil {
+			err = ErrInvalidArgument
+			return
+		}
 
 		valueArray, err = table.convertInterfaceToInterfaceArray(value)
 		if err != nil {
@@ -626,6 +716,10 @@ func (db *DataBase) ReplaceValue(table *Table, value interface{}) error {
 }
 
 func (db *DataBase) UpdateValue(table *Table, value interface{}) error {
+	if table == nil || value == nil {
+		return ErrInvalidArgument
+	}
+
 	return db.ExecWithTable(table, func(db *DataBase, sqlTx *sql.Tx, table *Table) (err error) {
 		var (
 			updatedCount int64
@@ -634,6 +728,11 @@ func (db *DataBase) UpdateValue(table *Table, value interface{}) error {
 			requestArray []string
 			sqlResult    sql.Result
 		)
+
+		if db == nil || sqlTx == nil || table == nil {
+			err = ErrInvalidArgument
+			return
+		}
 
 		valueArray, err = table.convertInterfaceToInterfaceArray(value)
 		if err != nil {
@@ -670,6 +769,10 @@ func (db *DataBase) UpdateValue(table *Table, value interface{}) error {
 }
 
 func (db *DataBase) DeleteValue(table *Table, value interface{}) error {
+	if table == nil || value == nil {
+		return ErrInvalidArgument
+	}
+
 	return db.ExecWithTable(table, func(db *DataBase, sqlTx *sql.Tx, table *Table) (err error) {
 		var (
 			deletedCount int64
@@ -678,6 +781,11 @@ func (db *DataBase) DeleteValue(table *Table, value interface{}) error {
 			requestArray []string
 			sqlResult    sql.Result
 		)
+
+		if db == nil || sqlTx == nil || table == nil {
+			err = ErrInvalidArgument
+			return
+		}
 
 		valueArray, err = table.convertInterfaceToInterfaceArray(value)
 		if err != nil {
