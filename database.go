@@ -69,6 +69,7 @@ func (db *DataBase) schemeExport() error {
 	return nil
 }
 
+// Checks if received table exist in database object
 func (db *DataBase) CheckExistTable(table *Table) bool {
 	db.schemeMutex <- true
 	schemeTable := db.scheme[table.GoName]
@@ -77,6 +78,7 @@ func (db *DataBase) CheckExistTable(table *Table) bool {
 	return schemeTable != nil
 }
 
+// Compares hashes of argument table object and table object from database map
 func (db *DataBase) CheckHashTable(table *Table) bool {
 	db.schemeMutex <- true
 	schemeTable := db.scheme[table.GoName]
@@ -287,6 +289,8 @@ func (db *DataBase) sqlCreateTable(table *Table) (request []string, err error) {
 	return
 }
 
+// Creates table argument in current database.
+// Saves table object in database scheme map
 func (db *DataBase) CreateTable(table *Table) error {
 	if db.CheckExistTable(table) {
 		return ErrTableAlreadyExists
@@ -319,6 +323,7 @@ func (db *DataBase) CreateTable(table *Table) error {
 	return db.schemeExport()
 }
 
+// Drops specified table in database and removes from database object.
 func (db *DataBase) DropTable(table *Table) error {
 	if !db.CheckExistTable(table) {
 		return ErrTableDoesNotExists
