@@ -136,6 +136,7 @@ type Table struct {
 	AutoIncrement *TableField `json:"autoIncrement"`
 }
 
+// returns current table hash
 func (table *Table) GetHash() string {
 	tableJson, err := json.Marshal(table)
 	if err != nil {
@@ -187,7 +188,7 @@ func (table *Table) convertInterfaceToInterfaceArray(value interface{}) (valueAr
 	valueReflectValue := reflect.ValueOf(value)
 
 	if value == nil {
-		err = fmt.Errorf("no value")
+		err = ErrInvalidArgument
 		return
 	}
 
@@ -294,6 +295,10 @@ func sqlFieldValueToString(goType reflect.Kind, reflectValue reflect.Value) (val
 }
 
 func (table *Table) sqlInsertValue(valueArray []interface{}) ([]string, error) {
+	if len(valueArray) == 0 {
+		return []string{}, ErrInvalidArgument
+	}
+
 	request := []string{}
 
 	fieldGoNameArray := []string{}
@@ -330,6 +335,10 @@ func (table *Table) sqlInsertValue(valueArray []interface{}) ([]string, error) {
 }
 
 func (table *Table) sqlReplaceValue(valueArray []interface{}) ([]string, error) {
+	if len(valueArray) == 0 {
+		return []string{}, ErrInvalidArgument
+	}
+
 	request := []string{}
 
 	fieldGoNameArray := []string{}
@@ -364,6 +373,10 @@ func (table *Table) sqlReplaceValue(valueArray []interface{}) ([]string, error) 
 }
 
 func (table *Table) sqlUpdateValue(valueArray []interface{}) ([]string, error) {
+	if len(valueArray) == 0 {
+		return []string{}, ErrInvalidArgument
+	}
+
 	request := []string{}
 
 	if table.AutoIncrement == nil {
@@ -407,6 +420,10 @@ func (table *Table) sqlUpdateValue(valueArray []interface{}) ([]string, error) {
 }
 
 func (table *Table) sqlDeleteValue(valueArray []interface{}) ([]string, error) {
+	if len(valueArray) == 0 {
+		return []string{}, ErrInvalidArgument
+	}
+
 	request := []string{}
 
 	if table.AutoIncrement == nil {
