@@ -590,8 +590,7 @@ func (db *DataBase) SelectValue(table *Table, where string) (response interface{
 		return
 	}
 
-	response, err = db.QueryWithTable(table, fmt.Sprintf("SELECT * FROM `%s` WHERE %s;", table.SqlName, where))
-	return
+	return db.QueryWithTable(table, fmt.Sprintf("SELECT * FROM `%s` WHERE %s;", table.SqlName, where))
 }
 
 // Selects from given @table single object with specified @where conditional string.
@@ -601,8 +600,7 @@ func (db *DataBase) SelectValueSingle(table *Table, where string) (response inte
 		return
 	}
 
-	response, err = db.QuerySingleWithTable(table, fmt.Sprintf("SELECT * FROM `%s` WHERE %s;", table.SqlName, where))
-	return
+	return db.QuerySingleWithTable(table, fmt.Sprintf("SELECT * FROM `%s` WHERE %s;", table.SqlName, where))
 }
 
 // Selects from given @table single object with specified @id value.
@@ -617,12 +615,7 @@ func (db *DataBase) SelectValueById(table *Table, id int64) (response interface{
 		return
 	}
 
-	response, err = db.SelectValueSingle(table, fmt.Sprintf("`%s` = %d;", table.AutoIncrement.SqlName, id))
-	if err != nil {
-		return
-	}
-
-	return
+	return db.SelectValueSingle(table, fmt.Sprintf("`%s` = %d;", table.AutoIncrement.SqlName, id))
 }
 
 // Inserts provided @value object (single or slice) into @table.
