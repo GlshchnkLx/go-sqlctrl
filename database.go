@@ -69,7 +69,7 @@ func (db *DataBase) schemeExport() error {
 	return nil
 }
 
-// Checks if received table exist in database object
+// Checks if received @table exist in database object
 func (db *DataBase) CheckExistTable(table *Table) bool {
 	if table == nil {
 		return false
@@ -95,6 +95,9 @@ func (db *DataBase) CheckHashTable(table *Table) bool {
 // DataBase control
 //--------------------------------------------------------------------------------//
 
+// Executes provided @request query for specified @table.
+// Does not check presence of @table in database.
+// Returns slice of values in interface{} object.
 func (db *DataBase) Query(table *Table, request string) (response interface{}, err error) {
 	var (
 		sqlTx         *sql.Tx
@@ -152,6 +155,9 @@ func (db *DataBase) Query(table *Table, request string) (response interface{}, e
 	return
 }
 
+// Executes provided @request query for specified @table.
+// Does not check presence of @table in database.
+// Returns single object in interface{} object.
 func (db *DataBase) QuerySingle(table *Table, request string) (response interface{}, err error) {
 	var (
 		responseArray             interface{}
@@ -185,6 +191,9 @@ func (db *DataBase) QuerySingle(table *Table, request string) (response interfac
 	return
 }
 
+// Executes provided @request query for specified @table.
+// Checks presence of @table in database.
+// Returns slice of objects in interface{} object.
 func (db *DataBase) QueryWithTable(table *Table, request string) (response interface{}, err error) {
 	if table == nil || len(request) == 0 {
 		return nil, ErrInvalidArgument
@@ -201,6 +210,9 @@ func (db *DataBase) QueryWithTable(table *Table, request string) (response inter
 	return db.Query(table, request)
 }
 
+// Executes provided @request query for specified @table.
+// Checks presence of @table in database.
+// Returns single object in interface{} object.
 func (db *DataBase) QuerySingleWithTable(table *Table, request string) (response interface{}, err error) {
 	if table == nil || len(request) == 0 {
 		return nil, ErrInvalidArgument
@@ -217,6 +229,8 @@ func (db *DataBase) QuerySingleWithTable(table *Table, request string) (response
 	return db.QuerySingle(table, request)
 }
 
+// Executes provided @handler closure with transaction control.
+// If @handler returns non-nil error transaction rollback is executed.
 func (db *DataBase) Exec(handler func(*DataBase, *sql.Tx) error) (err error) {
 	var (
 		sqlTx *sql.Tx
@@ -251,6 +265,9 @@ func (db *DataBase) Exec(handler func(*DataBase, *sql.Tx) error) (err error) {
 	return
 }
 
+// Executes provided @handler closure with transaction control.
+// Checks existence of @table in database.
+// If @handler returns non-nil error transaction rollback is executed.
 func (db *DataBase) ExecWithTable(table *Table, handler func(*DataBase, *sql.Tx, *Table) error) (err error) {
 	if table == nil || handler == nil {
 		return ErrInvalidArgument
@@ -329,8 +346,8 @@ func (db *DataBase) sqlCreateTable(table *Table) (request []string, err error) {
 	return
 }
 
-// Creates table argument in current database.
-// Saves table object in database scheme map
+// Creates @table argument in current database.
+// Saves table object in database scheme map.
 func (db *DataBase) CreateTable(table *Table) error {
 	if table == nil {
 		return ErrInvalidArgument
@@ -367,7 +384,7 @@ func (db *DataBase) CreateTable(table *Table) error {
 	return db.schemeExport()
 }
 
-// Drops specified table in database and removes from database object.
+// Drops specified @table in database and removes from database object.
 func (db *DataBase) DropTable(table *Table) error {
 	if table == nil {
 		return ErrInvalidArgument
@@ -565,6 +582,8 @@ func (db *DataBase) GetLastId(table *Table) (id int64, err error) {
 	return
 }
 
+// Selects from given @table slice of objects with specified @where conditional string.
+// Result of select is returned as interface{} object
 func (db *DataBase) SelectValue(table *Table, where string) (response interface{}, err error) {
 	if table == nil || len(where) == 0 {
 		err = ErrInvalidArgument
@@ -575,6 +594,7 @@ func (db *DataBase) SelectValue(table *Table, where string) (response interface{
 	return
 }
 
+// Selects from given @table single object with specified @where conditional string.
 func (db *DataBase) SelectValueSingle(table *Table, where string) (response interface{}, err error) {
 	if table == nil || len(where) == 0 {
 		err = ErrInvalidArgument
@@ -585,6 +605,7 @@ func (db *DataBase) SelectValueSingle(table *Table, where string) (response inte
 	return
 }
 
+// Selects from given @table single object with specified @id value.
 func (db *DataBase) SelectValueById(table *Table, id int64) (response interface{}, err error) {
 	if table == nil || id < 0 {
 		err = ErrInvalidArgument
@@ -604,6 +625,8 @@ func (db *DataBase) SelectValueById(table *Table, id int64) (response interface{
 	return
 }
 
+// Inserts provided @value object (single or slice) into @table.
+// Returns last inserted object id.
 func (db *DataBase) InsertValue(table *Table, value interface{}) (lastId int64, err error) {
 	if table == nil || value == nil {
 		err = ErrInvalidArgument
@@ -663,6 +686,7 @@ func (db *DataBase) InsertValue(table *Table, value interface{}) (lastId int64, 
 	return
 }
 
+// Replaces provided @value object (single or slice) in @table.
 func (db *DataBase) ReplaceValue(table *Table, value interface{}) error {
 	if table == nil || value == nil {
 		return ErrInvalidArgument
@@ -715,6 +739,7 @@ func (db *DataBase) ReplaceValue(table *Table, value interface{}) error {
 	})
 }
 
+// Updates provided @value object (single or slice) in @table.
 func (db *DataBase) UpdateValue(table *Table, value interface{}) error {
 	if table == nil || value == nil {
 		return ErrInvalidArgument
@@ -768,6 +793,7 @@ func (db *DataBase) UpdateValue(table *Table, value interface{}) error {
 	})
 }
 
+// Delete provided @value object (single or slice) from @table.
 func (db *DataBase) DeleteValue(table *Table, value interface{}) error {
 	if table == nil || value == nil {
 		return ErrInvalidArgument
@@ -822,8 +848,8 @@ func (db *DataBase) DeleteValue(table *Table, value interface{}) error {
 
 //--------------------------------------------------------------------------------//
 
-// Creates a Database object specified by its database driver name
-// and a driver-specific data source name. If sqlScheme file path exists
+// Creates a Database object specified by its database driver @sqlDriver
+// and a driver-specific data source @sqlSource. If @sqlScheme file path exists
 // imports provided database schema otherwise exports it.
 func NewDatabase(sqlDriver, sqlSource, sqlScheme string) (*DataBase, error) {
 	if len(sqlDriver) == 0 || len(sqlSource) == 0 || len(sqlScheme) == 0 {
