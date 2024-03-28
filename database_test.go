@@ -1,9 +1,11 @@
 package sqlctrl
 
 import (
+	"context"
 	"database/sql"
 	"os"
 	"testing"
+	"time"
 
 	_ "github.com/go-sql-driver/mysql"
 	_ "modernc.org/sqlite"
@@ -366,6 +368,73 @@ func TestSelectValue(t *testing.T) {
 	}
 }
 
+func TestSelectValueContext(t *testing.T) {
+	type TestTable struct {
+		ParamA int64  `sql:"NAME=paramA, TYPE=INTEGER, PRIMARY_KEY, AUTO_INCREMENT"`
+		ParamB string `sql:"NAME=paramB, TYPE=TEXT(32)"`
+	}
+
+	sqlDriver := "sqlite"
+	sqlSource := "./test.db"
+	sqlScheme := "./test.json"
+
+	db, err := NewDatabase(sqlDriver, sqlSource, sqlScheme)
+	if err != nil {
+		t.Errorf("NewDatabase error: %v", err)
+		t.FailNow()
+	}
+
+	table, err := NewTable("test_table", TestTable{})
+	if err != nil {
+		t.Errorf("NewTable error: %v", err)
+		t.FailNow()
+	}
+
+	if !db.CheckExistTable(table) {
+		err = db.CreateTable(table)
+		if err != nil {
+			t.Errorf("db.CreateTable error: %v", err)
+			t.FailNow()
+		}
+	}
+
+	_, err = db.InsertValue(table, []TestTable{
+		{ParamB: "a"},
+		{ParamB: "b"},
+		{ParamB: "c"},
+	})
+	if err != nil {
+		t.Errorf("db.InsertValue error: %v", err)
+		t.FailNow()
+	}
+
+	timeoutCtx, cancelFunc := context.WithTimeout(context.Background(), 1*time.Second)
+	defer cancelFunc()
+
+	responseIface, err := db.SelectValueContext(timeoutCtx, table, "ParamA = 3")
+	if err != nil {
+		t.Errorf("db.SelectValueContext error: %v", err)
+		t.FailNow()
+	}
+
+	responseArray, ok := responseIface.([]TestTable)
+	if !ok {
+		t.Errorf("wrong type assertion responseIface to []TestTable")
+		t.FailNow()
+	}
+
+	if responseArray[0].ParamA != 3 {
+		t.Errorf("wrong ParamA")
+		t.FailNow()
+	}
+
+	err = db.DropTable(table)
+	if err != nil {
+		t.Errorf("db.DropTable error: %v", err)
+		t.FailNow()
+	}
+}
+
 func TestSelectValueSingle(t *testing.T) {
 	type TestTable struct {
 		ParamA int64  `sql:"NAME=paramA, TYPE=INTEGER, PRIMARY_KEY, AUTO_INCREMENT"`
@@ -409,6 +478,73 @@ func TestSelectValueSingle(t *testing.T) {
 	responseIface, err := db.SelectValueSingle(table, "ParamA = 3")
 	if err != nil {
 		t.Errorf("db.SelectValueSingle error: %v", err)
+		t.FailNow()
+	}
+
+	response, ok := responseIface.(TestTable)
+	if !ok {
+		t.Errorf("wrong type assertion responseIface to TestTable")
+		t.FailNow()
+	}
+
+	if response.ParamA != 3 {
+		t.Errorf("wrong ParamA")
+		t.FailNow()
+	}
+
+	err = db.DropTable(table)
+	if err != nil {
+		t.Errorf("db.DropTable error: %v", err)
+		t.FailNow()
+	}
+}
+
+func TestSelectValueSingleContext(t *testing.T) {
+	type TestTable struct {
+		ParamA int64  `sql:"NAME=paramA, TYPE=INTEGER, PRIMARY_KEY, AUTO_INCREMENT"`
+		ParamB string `sql:"NAME=paramB, TYPE=TEXT(32)"`
+	}
+
+	sqlDriver := "sqlite"
+	sqlSource := "./test.db"
+	sqlScheme := "./test.json"
+
+	db, err := NewDatabase(sqlDriver, sqlSource, sqlScheme)
+	if err != nil {
+		t.Errorf("NewDatabase error: %v", err)
+		t.FailNow()
+	}
+
+	table, err := NewTable("test_table", TestTable{})
+	if err != nil {
+		t.Errorf("NewTable error: %v", err)
+		t.FailNow()
+	}
+
+	if !db.CheckExistTable(table) {
+		err = db.CreateTable(table)
+		if err != nil {
+			t.Errorf("db.CreateTable error: %v", err)
+			t.FailNow()
+		}
+	}
+
+	_, err = db.InsertValue(table, []TestTable{
+		{ParamB: "a"},
+		{ParamB: "b"},
+		{ParamB: "c"},
+	})
+	if err != nil {
+		t.Errorf("db.InsertValue error: %v", err)
+		t.FailNow()
+	}
+
+	timeoutCtx, cancelFunc := context.WithTimeout(context.Background(), 1*time.Second)
+	defer cancelFunc()
+
+	responseIface, err := db.SelectValueSingleContext(timeoutCtx, table, "ParamA = 3")
+	if err != nil {
+		t.Errorf("db.SelectValueSingleContext error: %v", err)
 		t.FailNow()
 	}
 
@@ -494,6 +630,73 @@ func TestSelectValueById(t *testing.T) {
 	}
 }
 
+func TestSelectValueByIdContext(t *testing.T) {
+	type TestTable struct {
+		ParamA int64  `sql:"NAME=paramA, TYPE=INTEGER, PRIMARY_KEY, AUTO_INCREMENT"`
+		ParamB string `sql:"NAME=paramB, TYPE=TEXT(32)"`
+	}
+
+	sqlDriver := "sqlite"
+	sqlSource := "./test.db"
+	sqlScheme := "./test.json"
+
+	db, err := NewDatabase(sqlDriver, sqlSource, sqlScheme)
+	if err != nil {
+		t.Errorf("NewDatabase error: %v", err)
+		t.FailNow()
+	}
+
+	table, err := NewTable("test_table", TestTable{})
+	if err != nil {
+		t.Errorf("NewTable error: %v", err)
+		t.FailNow()
+	}
+
+	if !db.CheckExistTable(table) {
+		err = db.CreateTable(table)
+		if err != nil {
+			t.Errorf("db.CreateTable error: %v", err)
+			t.FailNow()
+		}
+	}
+
+	_, err = db.InsertValue(table, []TestTable{
+		{ParamB: "a"},
+		{ParamB: "b"},
+		{ParamB: "c"},
+	})
+	if err != nil {
+		t.Errorf("db.InsertValue error: %v", err)
+		t.FailNow()
+	}
+
+	timeoutCtx, cancelFunc := context.WithTimeout(context.Background(), 1*time.Second)
+	defer cancelFunc()
+
+	responseIface, err := db.SelectValueByIdContext(timeoutCtx, table, 3)
+	if err != nil {
+		t.Errorf("db.SelectValueByIdContext error: %v", err)
+		t.FailNow()
+	}
+
+	response, ok := responseIface.(TestTable)
+	if !ok {
+		t.Errorf("wrong type assertion responseIface to TestTable")
+		t.FailNow()
+	}
+
+	if response.ParamA != 3 {
+		t.Errorf("wrong ParamA")
+		t.FailNow()
+	}
+
+	err = db.DropTable(table)
+	if err != nil {
+		t.Errorf("db.DropTable error: %v", err)
+		t.FailNow()
+	}
+}
+
 func TestInsertValue(t *testing.T) {
 	type TestTable struct {
 		ParamA int64  `sql:"NAME=paramA, TYPE=INTEGER, PRIMARY_KEY, AUTO_INCREMENT"`
@@ -531,6 +734,81 @@ func TestInsertValue(t *testing.T) {
 	})
 	if err != nil {
 		t.Errorf("db.InsertValue chunk error: %v", err)
+		t.FailNow()
+	}
+
+	_, err = db.InsertValue(table, TestTable{
+		ParamB: "d",
+	})
+	if err != nil {
+		t.Errorf("db.InsertValue single error: %v", err)
+		t.FailNow()
+	}
+
+	responseIface, err := db.SelectValueById(table, 4)
+	if err != nil {
+		t.Errorf("db.SelectValueById error: %v", err)
+		t.FailNow()
+	}
+
+	response, ok := responseIface.(TestTable)
+	if !ok {
+		t.Errorf("wrong type assertion responseIface to TestTable")
+		t.FailNow()
+	}
+
+	if response.ParamA != 4 {
+		t.Errorf("wrong ParamA")
+		t.FailNow()
+	}
+
+	err = db.DropTable(table)
+	if err != nil {
+		t.Errorf("db.DropTable error: %v", err)
+		t.FailNow()
+	}
+}
+
+func TestInsertValueContext(t *testing.T) {
+	type TestTable struct {
+		ParamA int64  `sql:"NAME=paramA, TYPE=INTEGER, PRIMARY_KEY, AUTO_INCREMENT"`
+		ParamB string `sql:"NAME=paramB, TYPE=TEXT(32)"`
+	}
+
+	sqlDriver := "sqlite"
+	sqlSource := "./test.db"
+	sqlScheme := "./test.json"
+
+	db, err := NewDatabase(sqlDriver, sqlSource, sqlScheme)
+	if err != nil {
+		t.Errorf("NewDatabase error: %v", err)
+		t.FailNow()
+	}
+
+	table, err := NewTable("test_table", TestTable{})
+	if err != nil {
+		t.Errorf("NewTable error: %v", err)
+		t.FailNow()
+	}
+
+	if !db.CheckExistTable(table) {
+		err = db.CreateTable(table)
+		if err != nil {
+			t.Errorf("db.CreateTable error: %v", err)
+			t.FailNow()
+		}
+	}
+
+	timeoutCtx, cancelFunc := context.WithTimeout(context.Background(), 1*time.Second)
+	defer cancelFunc()
+
+	_, err = db.InsertValueContext(timeoutCtx, table, []TestTable{
+		{ParamB: "a"},
+		{ParamB: "b"},
+		{ParamB: "c"},
+	})
+	if err != nil {
+		t.Errorf("db.InsertValueContext chunk error: %v", err)
 		t.FailNow()
 	}
 
@@ -640,6 +918,83 @@ func TestReplaceValue(t *testing.T) {
 	}
 }
 
+func TestReplaceValueContext(t *testing.T) {
+	type TestTable struct {
+		ParamA int64  `sql:"NAME=paramA, TYPE=INTEGER, PRIMARY_KEY, AUTO_INCREMENT"`
+		ParamB string `sql:"NAME=paramB, TYPE=TEXT(32)"`
+	}
+
+	sqlDriver := "sqlite"
+	sqlSource := "./test.db"
+	sqlScheme := "./test.json"
+
+	db, err := NewDatabase(sqlDriver, sqlSource, sqlScheme)
+	if err != nil {
+		t.Errorf("NewDatabase error: %v", err)
+		t.FailNow()
+	}
+
+	table, err := NewTable("test_table", TestTable{})
+	if err != nil {
+		t.Errorf("NewTable error: %v", err)
+		t.FailNow()
+	}
+
+	if !db.CheckExistTable(table) {
+		err = db.CreateTable(table)
+		if err != nil {
+			t.Errorf("db.CreateTable error: %v", err)
+			t.FailNow()
+		}
+	}
+
+	_, err = db.InsertValue(table, []TestTable{
+		{ParamB: "a"},
+		{ParamB: "b"},
+		{ParamB: "c"},
+	})
+	if err != nil {
+		t.Errorf("db.InsertValue chunk error: %v", err)
+		t.FailNow()
+	}
+
+	timeoutCtx, cancelFunc := context.WithTimeout(context.Background(), 1*time.Second)
+	defer cancelFunc()
+
+	err = db.ReplaceValueContext(timeoutCtx, table, []TestTable{
+		{ParamA: 1, ParamB: "a1"},
+		{ParamA: 2, ParamB: "b1"},
+		{ParamA: 3, ParamB: "c1"},
+	})
+	if err != nil {
+		t.Errorf("db.ReplaceValueContext error: %v", err)
+		t.FailNow()
+	}
+
+	responseIface, err := db.SelectValueById(table, 3)
+	if err != nil {
+		t.Errorf("db.SelectValueById error: %v", err)
+		t.FailNow()
+	}
+
+	response, ok := responseIface.(TestTable)
+	if !ok {
+		t.Errorf("wrong type assertion responseIface to TestTable")
+		t.FailNow()
+	}
+
+	if response.ParamA != 3 || response.ParamB != "c1" {
+		t.Errorf("wrong ParamA")
+		t.FailNow()
+	}
+
+	err = db.DropTable(table)
+	if err != nil {
+		t.Errorf("db.DropTable error: %v", err)
+		t.FailNow()
+	}
+}
+
 func TestUpdateValue(t *testing.T) {
 	type TestTable struct {
 		ParamA int64  `sql:"NAME=paramA, TYPE=INTEGER, PRIMARY_KEY, AUTO_INCREMENT"`
@@ -687,6 +1042,83 @@ func TestUpdateValue(t *testing.T) {
 	})
 	if err != nil {
 		t.Errorf("db.UpdateValue error: %v", err)
+		t.FailNow()
+	}
+
+	responseIface, err := db.SelectValueById(table, 3)
+	if err != nil {
+		t.Errorf("db.SelectValueById error: %v", err)
+		t.FailNow()
+	}
+
+	response, ok := responseIface.(TestTable)
+	if !ok {
+		t.Errorf("wrong type assertion responseIface to TestTable")
+		t.FailNow()
+	}
+
+	if response.ParamA != 3 || response.ParamB != "c1" {
+		t.Errorf("wrong ParamA")
+		t.FailNow()
+	}
+
+	err = db.DropTable(table)
+	if err != nil {
+		t.Errorf("db.DropTable error: %v", err)
+		t.FailNow()
+	}
+}
+
+func TestUpdateValueContext(t *testing.T) {
+	type TestTable struct {
+		ParamA int64  `sql:"NAME=paramA, TYPE=INTEGER, PRIMARY_KEY, AUTO_INCREMENT"`
+		ParamB string `sql:"NAME=paramB, TYPE=TEXT(32)"`
+	}
+
+	sqlDriver := "sqlite"
+	sqlSource := "./test.db"
+	sqlScheme := "./test.json"
+
+	db, err := NewDatabase(sqlDriver, sqlSource, sqlScheme)
+	if err != nil {
+		t.Errorf("NewDatabase error: %v", err)
+		t.FailNow()
+	}
+
+	table, err := NewTable("test_table", TestTable{})
+	if err != nil {
+		t.Errorf("NewTable error: %v", err)
+		t.FailNow()
+	}
+
+	if !db.CheckExistTable(table) {
+		err = db.CreateTable(table)
+		if err != nil {
+			t.Errorf("db.CreateTable error: %v", err)
+			t.FailNow()
+		}
+	}
+
+	_, err = db.InsertValue(table, []TestTable{
+		{ParamB: "a"},
+		{ParamB: "b"},
+		{ParamB: "c"},
+	})
+	if err != nil {
+		t.Errorf("db.InsertValue chunk error: %v", err)
+		t.FailNow()
+	}
+
+	timeoutCtx, cancelFunc := context.WithTimeout(context.Background(), 1*time.Second)
+	defer cancelFunc()
+
+	err = db.UpdateValueContext(timeoutCtx, table, []TestTable{
+		{ParamA: 1, ParamB: "a1"},
+		{ParamA: 2, ParamB: "b1"},
+		{ParamA: 3, ParamB: "c1"},
+	})
+	if err != nil {
+		t.Errorf("db.UpdateValueContext error: %v", err)
 		t.FailNow()
 	}
 
@@ -782,6 +1214,77 @@ func TestDeleteValue(t *testing.T) {
 	}
 }
 
+func TestDeleteValueContext(t *testing.T) {
+	type TestTable struct {
+		ParamA int64  `sql:"NAME=paramA, TYPE=INTEGER, PRIMARY_KEY, AUTO_INCREMENT"`
+		ParamB string `sql:"NAME=paramB, TYPE=TEXT(32)"`
+	}
+
+	sqlDriver := "sqlite"
+	sqlSource := "./test.db"
+	sqlScheme := "./test.json"
+
+	db, err := NewDatabase(sqlDriver, sqlSource, sqlScheme)
+	if err != nil {
+		t.Errorf("NewDatabase error: %v", err)
+		t.FailNow()
+	}
+
+	table, err := NewTable("test_table", TestTable{})
+	if err != nil {
+		t.Errorf("NewTable error: %v", err)
+		t.FailNow()
+	}
+
+	if !db.CheckExistTable(table) {
+		err = db.CreateTable(table)
+		if err != nil {
+			t.Errorf("db.CreateTable error: %v", err)
+			t.FailNow()
+		}
+	}
+
+	_, err = db.InsertValue(table, []TestTable{
+		{ParamB: "a"},
+		{ParamB: "b"},
+		{ParamB: "c"},
+	})
+	if err != nil {
+		t.Errorf("db.InsertValue chunk error: %v", err)
+		t.FailNow()
+	}
+
+	timeoutCtx, cancelFunc := context.WithTimeout(context.Background(), 1*time.Second)
+	defer cancelFunc()
+
+	err = db.DeleteValueContext(timeoutCtx, table, []TestTable{
+		{ParamA: 1, ParamB: "a1"},
+		{ParamA: 2, ParamB: "b1"},
+		{ParamA: 3, ParamB: "c1"},
+	})
+	if err != nil {
+		t.Errorf("db.DeleteValueContext error: %v", err)
+		t.FailNow()
+	}
+
+	count, err := db.GetCount(table)
+	if err != nil {
+		t.Errorf("db.SelectValueById error: %v", err)
+		t.FailNow()
+	}
+
+	if count != 0 {
+		t.Errorf("count != 0")
+		t.FailNow()
+	}
+
+	err = db.DropTable(table)
+	if err != nil {
+		t.Errorf("db.DropTable error: %v", err)
+		t.FailNow()
+	}
+}
+
 func TestQuery(t *testing.T) {
 	type TestTable struct {
 		ParamA int64  `sql:"NAME=paramA, TYPE=INTEGER, PRIMARY_KEY, AUTO_INCREMENT"`
@@ -825,6 +1328,73 @@ func TestQuery(t *testing.T) {
 	responseIface, err := db.Query(table, "select * from test_table where paramA = 3")
 	if err != nil {
 		t.Errorf("db.Query error: %v", err)
+		t.FailNow()
+	}
+
+	response, ok := responseIface.([]TestTable)
+	if !ok {
+		t.Errorf("wrong type assertion responseIface to []TestTable")
+		t.FailNow()
+	}
+
+	if response[0].ParamA != 3 || response[0].ParamB != "c" {
+		t.Errorf("wrong item selected")
+		t.FailNow()
+	}
+
+	err = db.DropTable(table)
+	if err != nil {
+		t.Errorf("db.DropTable error: %v", err)
+		t.FailNow()
+	}
+}
+
+func TestQueryContext(t *testing.T) {
+	type TestTable struct {
+		ParamA int64  `sql:"NAME=paramA, TYPE=INTEGER, PRIMARY_KEY, AUTO_INCREMENT"`
+		ParamB string `sql:"NAME=paramB, TYPE=TEXT(32)"`
+	}
+
+	sqlDriver := "sqlite"
+	sqlSource := "./test.db"
+	sqlScheme := "./test.json"
+
+	db, err := NewDatabase(sqlDriver, sqlSource, sqlScheme)
+	if err != nil {
+		t.Errorf("NewDatabase error: %v", err)
+		t.FailNow()
+	}
+
+	table, err := NewTable("test_table", TestTable{})
+	if err != nil {
+		t.Errorf("NewTable error: %v", err)
+		t.FailNow()
+	}
+
+	if !db.CheckExistTable(table) {
+		err = db.CreateTable(table)
+		if err != nil {
+			t.Errorf("db.CreateTable error: %v", err)
+			t.FailNow()
+		}
+	}
+
+	_, err = db.InsertValue(table, []TestTable{
+		{ParamB: "a"},
+		{ParamB: "b"},
+		{ParamB: "c"},
+	})
+	if err != nil {
+		t.Errorf("db.InsertValue chunk error: %v", err)
+		t.FailNow()
+	}
+
+	timeoutCtx, cancelFunc := context.WithTimeout(context.Background(), 1*time.Second)
+	defer cancelFunc()
+
+	responseIface, err := db.QueryContext(timeoutCtx, table, "select * from test_table where paramA = 3")
+	if err != nil {
+		t.Errorf("db.QueryContext error: %v", err)
 		t.FailNow()
 	}
 
@@ -910,6 +1480,73 @@ func TestQuerySingle(t *testing.T) {
 	}
 }
 
+func TestQuerySingleContext(t *testing.T) {
+	type TestTable struct {
+		ParamA int64  `sql:"NAME=paramA, TYPE=INTEGER, PRIMARY_KEY, AUTO_INCREMENT"`
+		ParamB string `sql:"NAME=paramB, TYPE=TEXT(32)"`
+	}
+
+	sqlDriver := "sqlite"
+	sqlSource := "./test.db"
+	sqlScheme := "./test.json"
+
+	db, err := NewDatabase(sqlDriver, sqlSource, sqlScheme)
+	if err != nil {
+		t.Errorf("NewDatabase error: %v", err)
+		t.FailNow()
+	}
+
+	table, err := NewTable("test_table", TestTable{})
+	if err != nil {
+		t.Errorf("NewTable error: %v", err)
+		t.FailNow()
+	}
+
+	if !db.CheckExistTable(table) {
+		err = db.CreateTable(table)
+		if err != nil {
+			t.Errorf("db.CreateTable error: %v", err)
+			t.FailNow()
+		}
+	}
+
+	_, err = db.InsertValue(table, []TestTable{
+		{ParamB: "a"},
+		{ParamB: "b"},
+		{ParamB: "c"},
+	})
+	if err != nil {
+		t.Errorf("db.InsertValue chunk error: %v", err)
+		t.FailNow()
+	}
+
+	timeoutCtx, cancelFunc := context.WithTimeout(context.Background(), 1*time.Second)
+	defer cancelFunc()
+
+	responseIface, err := db.QuerySingleContext(timeoutCtx, table, "select * from test_table where paramA = 3")
+	if err != nil {
+		t.Errorf("db.QuerySingleContext error: %v", err)
+		t.FailNow()
+	}
+
+	response, ok := responseIface.(TestTable)
+	if !ok {
+		t.Errorf("wrong type assertion responseIface to TestTable")
+		t.FailNow()
+	}
+
+	if response.ParamA != 3 || response.ParamB != "c" {
+		t.Errorf("wrong item selected")
+		t.FailNow()
+	}
+
+	err = db.DropTable(table)
+	if err != nil {
+		t.Errorf("db.DropTable error: %v", err)
+		t.FailNow()
+	}
+}
+
 func TestQueryWithTable(t *testing.T) {
 	type TestTable struct {
 		ParamA int64  `sql:"NAME=paramA, TYPE=INTEGER, PRIMARY_KEY, AUTO_INCREMENT"`
@@ -974,6 +1611,73 @@ func TestQueryWithTable(t *testing.T) {
 	}
 }
 
+func TestQueryWithTableContext(t *testing.T) {
+	type TestTable struct {
+		ParamA int64  `sql:"NAME=paramA, TYPE=INTEGER, PRIMARY_KEY, AUTO_INCREMENT"`
+		ParamB string `sql:"NAME=paramB, TYPE=TEXT(32)"`
+	}
+
+	sqlDriver := "sqlite"
+	sqlSource := "./test.db"
+	sqlScheme := "./test.json"
+
+	db, err := NewDatabase(sqlDriver, sqlSource, sqlScheme)
+	if err != nil {
+		t.Errorf("NewDatabase error: %v", err)
+		t.FailNow()
+	}
+
+	table, err := NewTable("test_table", TestTable{})
+	if err != nil {
+		t.Errorf("NewTable error: %v", err)
+		t.FailNow()
+	}
+
+	if !db.CheckExistTable(table) {
+		err = db.CreateTable(table)
+		if err != nil {
+			t.Errorf("db.CreateTable error: %v", err)
+			t.FailNow()
+		}
+	}
+
+	_, err = db.InsertValue(table, []TestTable{
+		{ParamB: "a"},
+		{ParamB: "b"},
+		{ParamB: "c"},
+	})
+	if err != nil {
+		t.Errorf("db.InsertValue chunk error: %v", err)
+		t.FailNow()
+	}
+
+	timeoutCtx, cancelFunc := context.WithTimeout(context.Background(), 1*time.Second)
+	defer cancelFunc()
+
+	responseIface, err := db.QueryWithTableContext(timeoutCtx, table, "select * from test_table where paramA = 3")
+	if err != nil {
+		t.Errorf("db.QueryWithTableContext error: %v", err)
+		t.FailNow()
+	}
+
+	response, ok := responseIface.([]TestTable)
+	if !ok {
+		t.Errorf("wrong type assertion responseIface to []TestTable")
+		t.FailNow()
+	}
+
+	if response[0].ParamA != 3 || response[0].ParamB != "c" {
+		t.Errorf("wrong item selected")
+		t.FailNow()
+	}
+
+	err = db.DropTable(table)
+	if err != nil {
+		t.Errorf("db.DropTable error: %v", err)
+		t.FailNow()
+	}
+}
+
 func TestQuerySingleWithTable(t *testing.T) {
 	type TestTable struct {
 		ParamA int64  `sql:"NAME=paramA, TYPE=INTEGER, PRIMARY_KEY, AUTO_INCREMENT"`
@@ -1017,6 +1721,73 @@ func TestQuerySingleWithTable(t *testing.T) {
 	responseIface, err := db.QuerySingleWithTable(table, "select * from test_table where paramA = 3")
 	if err != nil {
 		t.Errorf("db.QuerySingleWithTable error: %v", err)
+		t.FailNow()
+	}
+
+	response, ok := responseIface.(TestTable)
+	if !ok {
+		t.Errorf("wrong type assertion responseIface to TestTable")
+		t.FailNow()
+	}
+
+	if response.ParamA != 3 || response.ParamB != "c" {
+		t.Errorf("wrong item selected")
+		t.FailNow()
+	}
+
+	err = db.DropTable(table)
+	if err != nil {
+		t.Errorf("db.DropTable error: %v", err)
+		t.FailNow()
+	}
+}
+
+func TestQuerySingleWithTableContext(t *testing.T) {
+	type TestTable struct {
+		ParamA int64  `sql:"NAME=paramA, TYPE=INTEGER, PRIMARY_KEY, AUTO_INCREMENT"`
+		ParamB string `sql:"NAME=paramB, TYPE=TEXT(32)"`
+	}
+
+	sqlDriver := "sqlite"
+	sqlSource := "./test.db"
+	sqlScheme := "./test.json"
+
+	db, err := NewDatabase(sqlDriver, sqlSource, sqlScheme)
+	if err != nil {
+		t.Errorf("NewDatabase error: %v", err)
+		t.FailNow()
+	}
+
+	table, err := NewTable("test_table", TestTable{})
+	if err != nil {
+		t.Errorf("NewTable error: %v", err)
+		t.FailNow()
+	}
+
+	if !db.CheckExistTable(table) {
+		err = db.CreateTable(table)
+		if err != nil {
+			t.Errorf("db.CreateTable error: %v", err)
+			t.FailNow()
+		}
+	}
+
+	_, err = db.InsertValue(table, []TestTable{
+		{ParamB: "a"},
+		{ParamB: "b"},
+		{ParamB: "c"},
+	})
+	if err != nil {
+		t.Errorf("db.InsertValue chunk error: %v", err)
+		t.FailNow()
+	}
+
+	timeoutCtx, cancelFunc := context.WithTimeout(context.Background(), 1*time.Second)
+	defer cancelFunc()
+
+	responseIface, err := db.QuerySingleWithTableContext(timeoutCtx, table, "select * from test_table where paramA = 3")
+	if err != nil {
+		t.Errorf("db.QuerySingleWithTableContext error: %v", err)
 		t.FailNow()
 	}
 
@@ -1111,6 +1882,82 @@ func TestExec(t *testing.T) {
 	}
 }
 
+func TestExecContext(t *testing.T) {
+	type TestTable struct {
+		ParamA int64  `sql:"NAME=paramA, TYPE=INTEGER, PRIMARY_KEY, AUTO_INCREMENT"`
+		ParamB string `sql:"NAME=paramB, TYPE=TEXT(32)"`
+	}
+
+	sqlDriver := "sqlite"
+	sqlSource := "./test.db"
+	sqlScheme := "./test.json"
+
+	db, err := NewDatabase(sqlDriver, sqlSource, sqlScheme)
+	if err != nil {
+		t.Errorf("NewDatabase error: %v", err)
+		t.FailNow()
+	}
+
+	table, err := NewTable("test_table", TestTable{})
+	if err != nil {
+		t.Errorf("NewTable error: %v", err)
+		t.FailNow()
+	}
+
+	if !db.CheckExistTable(table) {
+		err = db.CreateTable(table)
+		if err != nil {
+			t.Errorf("db.CreateTable error: %v", err)
+			t.FailNow()
+		}
+	}
+
+	_, err = db.InsertValue(table, []TestTable{
+		{ParamB: "a"},
+		{ParamB: "b"},
+		{ParamB: "c"},
+	})
+	if err != nil {
+		t.Errorf("db.InsertValue chunk error: %v", err)
+		t.FailNow()
+	}
+
+	timeoutCtx, cancelFunc := context.WithTimeout(context.Background(), 1*time.Second)
+	defer cancelFunc()
+
+	err = db.ExecContext(timeoutCtx, func(db *DataBase, tx *sql.Tx) error {
+		rows, err := tx.Query("select * from test_table where paramA = 3")
+		if err != nil {
+			return err
+		}
+
+		for rows.Next() {
+			test := TestTable{}
+			err = rows.Scan(&test.ParamA, &test.ParamB)
+			if err != nil {
+				return err
+			}
+
+			if test.ParamA != 3 || test.ParamB != "c" {
+				t.Errorf("wrong value received")
+				t.FailNow()
+			}
+		}
+
+		return nil
+	})
+	if err != nil {
+		t.Errorf("db.ExecContext error: %v", err)
+		t.FailNow()
+	}
+
+	err = db.DropTable(table)
+	if err != nil {
+		t.Errorf("db.DropTable error: %v", err)
+		t.FailNow()
+	}
+}
+
 func TestExecWithTable(t *testing.T) {
 	type TestTable struct {
 		ParamA int64  `sql:"NAME=paramA, TYPE=INTEGER, PRIMARY_KEY, AUTO_INCREMENT"`
@@ -1174,6 +2021,82 @@ func TestExecWithTable(t *testing.T) {
 	})
 	if err != nil {
 		t.Errorf("db.ExecWithTable error: %v", err)
+		t.FailNow()
+	}
+
+	err = db.DropTable(table)
+	if err != nil {
+		t.Errorf("db.DropTable error: %v", err)
+		t.FailNow()
+	}
+}
+
+func TestExecWithTableContext(t *testing.T) {
+	type TestTable struct {
+		ParamA int64  `sql:"NAME=paramA, TYPE=INTEGER, PRIMARY_KEY, AUTO_INCREMENT"`
+		ParamB string `sql:"NAME=paramB, TYPE=TEXT(32)"`
+	}
+
+	sqlDriver := "sqlite"
+	sqlSource := "./test.db"
+	sqlScheme := "./test.json"
+
+	db, err := NewDatabase(sqlDriver, sqlSource, sqlScheme)
+	if err != nil {
+		t.Errorf("NewDatabase error: %v", err)
+		t.FailNow()
+	}
+
+	table, err := NewTable("test_table", TestTable{})
+	if err != nil {
+		t.Errorf("NewTable error: %v", err)
+		t.FailNow()
+	}
+
+	if !db.CheckExistTable(table) {
+		err = db.CreateTable(table)
+		if err != nil {
+			t.Errorf("db.CreateTable error: %v", err)
+			t.FailNow()
+		}
+	}
+
+	_, err = db.InsertValue(table, []TestTable{
+		{ParamB: "a"},
+		{ParamB: "b"},
+		{ParamB: "c"},
+	})
+	if err != nil {
+		t.Errorf("db.InsertValue chunk error: %v", err)
+		t.FailNow()
+	}
+
+	timeoutCtx, cancelFunc := context.WithTimeout(context.Background(), 1*time.Second)
+	defer cancelFunc()
+
+	err = db.ExecWithTableContext(timeoutCtx, table, func(db *DataBase, tx *sql.Tx, table *Table) error {
+		rows, err := tx.Query("select * from test_table where paramA = 3")
+		if err != nil {
+			return err
+		}
+
+		for rows.Next() {
+			test := TestTable{}
+			err = rows.Scan(&test.ParamA, &test.ParamB)
+			if err != nil {
+				return err
+			}
+
+			if test.ParamA != 3 || test.ParamB != "c" {
+				t.Errorf("wrong value received")
+				t.FailNow()
+			}
+		}
+
+		return nil
+	})
+	if err != nil {
+		t.Errorf("db.ExecWithTableContext error: %v", err)
 		t.FailNow()
 	}
 
