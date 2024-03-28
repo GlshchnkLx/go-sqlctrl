@@ -1,6 +1,7 @@
 package sqlctrl
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"fmt"
@@ -155,6 +156,18 @@ func (db *DataBase) Query(table *Table, request string) (response interface{}, e
 	return
 }
 
+// Executes provided @request query for specified @table with @ctx context.
+// Does not check presence of @table in database.
+// Returns slice of values in interface{} object.
+func (db *DataBase) QueryContext(ctx context.Context, table *Table, request string) (response interface{}, err error) {
+	err = doWithContext(ctx, func() error {
+		response, err = db.Query(table, request)
+		return err
+	})
+
+	return
+}
+
 // Executes provided @request query for specified @table.
 // Does not check presence of @table in database.
 // Returns single object in interface{} object.
@@ -191,6 +204,18 @@ func (db *DataBase) QuerySingle(table *Table, request string) (response interfac
 	return
 }
 
+// Executes provided @request query for specified @table with @ctx context.
+// Does not check presence of @table in database.
+// Returns single object in interface{} object.
+func (db *DataBase) QuerySingleContext(ctx context.Context, table *Table, request string) (response interface{}, err error) {
+	err = doWithContext(ctx, func() error {
+		response, err = db.QuerySingle(table, request)
+		return err
+	})
+
+	return
+}
+
 // Executes provided @request query for specified @table.
 // Checks presence of @table in database.
 // Returns slice of objects in interface{} object.
@@ -210,6 +235,18 @@ func (db *DataBase) QueryWithTable(table *Table, request string) (response inter
 	return db.Query(table, request)
 }
 
+// Executes provided @request query for specified @table with @ctx context.
+// Checks presence of @table in database.
+// Returns slice of objects in interface{} object.
+func (db *DataBase) QueryWithTableContext(ctx context.Context, table *Table, request string) (response interface{}, err error) {
+	err = doWithContext(ctx, func() error {
+		response, err = db.QueryWithTable(table, request)
+		return err
+	})
+
+	return
+}
+
 // Executes provided @request query for specified @table.
 // Checks presence of @table in database.
 // Returns single object in interface{} object.
@@ -227,6 +264,18 @@ func (db *DataBase) QuerySingleWithTable(table *Table, request string) (response
 	}
 
 	return db.QuerySingle(table, request)
+}
+
+// Executes provided @request query for specified @table with @ctx context.
+// Checks presence of @table in database.
+// Returns single object in interface{} object.
+func (db *DataBase) QuerySingleWithTableContext(ctx context.Context, table *Table, request string) (response interface{}, err error) {
+	err = doWithContext(ctx, func() error {
+		response, err = db.QuerySingleWithTable(table, request)
+		return err
+	})
+
+	return
 }
 
 // Executes provided @handler closure with transaction control.
@@ -265,6 +314,14 @@ func (db *DataBase) Exec(handler func(*DataBase, *sql.Tx) error) (err error) {
 	return
 }
 
+// Executes provided @handler closure with @ctx context. Has transaction control.
+// If @handler returns non-nil error transaction rollback is executed.
+func (db *DataBase) ExecContext(ctx context.Context, handler func(*DataBase, *sql.Tx) error) (err error) {
+	return doWithContext(ctx, func() error {
+		return db.Exec(handler)
+	})
+}
+
 // Executes provided @handler closure with transaction control.
 // Checks existence of @table in database.
 // If @handler returns non-nil error transaction rollback is executed.
@@ -286,6 +343,15 @@ func (db *DataBase) ExecWithTable(table *Table, handler func(*DataBase, *sql.Tx,
 	})
 
 	return
+}
+
+// Executes provided @handler closure with @ctx context. Has transaction control.
+// Checks existence of @table in database.
+// If @handler returns non-nil error transaction rollback is executed.
+func (db *DataBase) ExecWithTableContext(ctx context.Context, table *Table, handler func(*DataBase, *sql.Tx, *Table) error) (err error) {
+	return doWithContext(ctx, func() error {
+		return db.ExecWithTable(table, handler)
+	})
 }
 
 //--------------------------------------------------------------------------------//
@@ -593,6 +659,17 @@ func (db *DataBase) SelectValue(table *Table, where string) (response interface{
 	return db.QueryWithTable(table, fmt.Sprintf("SELECT * FROM `%s` WHERE %s;", table.SqlName, where))
 }
 
+// Selects from given @table slice of objects with provided @ctx context and @where conditional string.
+// Result of select is returned as interface{} object
+func (db *DataBase) SelectValueContext(ctx context.Context, table *Table, where string) (response interface{}, err error) {
+	err = doWithContext(ctx, func() error {
+		response, err = db.SelectValue(table, where)
+		return err
+	})
+
+	return
+}
+
 // Selects from given @table single object with specified @where conditional string.
 func (db *DataBase) SelectValueSingle(table *Table, where string) (response interface{}, err error) {
 	if table == nil || len(where) == 0 {
@@ -601,6 +678,16 @@ func (db *DataBase) SelectValueSingle(table *Table, where string) (response inte
 	}
 
 	return db.QuerySingleWithTable(table, fmt.Sprintf("SELECT * FROM `%s` WHERE %s;", table.SqlName, where))
+}
+
+// Selects from given @table single object with specified @ctx context and @where conditional string.
+func (db *DataBase) SelectValueSingleContext(ctx context.Context, table *Table, where string) (response interface{}, err error) {
+	err = doWithContext(ctx, func() error {
+		response, err = db.SelectValueSingle(table, where)
+		return err
+	})
+
+	return
 }
 
 // Selects from given @table single object with specified @id value.
@@ -616,6 +703,16 @@ func (db *DataBase) SelectValueById(table *Table, id int64) (response interface{
 	}
 
 	return db.SelectValueSingle(table, fmt.Sprintf("`%s` = %d;", table.AutoIncrement.SqlName, id))
+}
+
+// Selects from given @table single object with specified @id value.
+func (db *DataBase) SelectValueByIdContext(ctx context.Context, table *Table, id int64) (response interface{}, err error) {
+	err = doWithContext(ctx, func() error {
+		response, err = db.SelectValueById(table, id)
+		return err
+	})
+
+	return
 }
 
 // Inserts provided @value object (single or slice) into @table.
@@ -679,6 +776,17 @@ func (db *DataBase) InsertValue(table *Table, value interface{}) (lastId int64, 
 	return
 }
 
+// Inserts provided @value object (single or slice) into @table with @ctx context.
+// Returns last inserted object id.
+func (db *DataBase) InsertValueContext(ctx context.Context, table *Table, value interface{}) (lastId int64, err error) {
+	err = doWithContext(ctx, func() error {
+		lastId, err = db.InsertValue(table, value)
+		return err
+	})
+
+	return
+}
+
 // Replaces provided @value object (single or slice) in @table.
 func (db *DataBase) ReplaceValue(table *Table, value interface{}) error {
 	if table == nil || value == nil {
@@ -729,6 +837,13 @@ func (db *DataBase) ReplaceValue(table *Table, value interface{}) error {
 		}
 
 		return err
+	})
+}
+
+// Replaces provided @value object (single or slice) in @table with @ctx context.
+func (db *DataBase) ReplaceValueContext(ctx context.Context, table *Table, value interface{}) error {
+	return doWithContext(ctx, func() error {
+		return db.ReplaceValue(table, value)
 	})
 }
 
@@ -786,6 +901,13 @@ func (db *DataBase) UpdateValue(table *Table, value interface{}) error {
 	})
 }
 
+// Updates provided @value object (single or slice) in @table with @ctx context.
+func (db *DataBase) UpdateValueContext(ctx context.Context, table *Table, value interface{}) error {
+	return doWithContext(ctx, func() error {
+		return db.UpdateValue(table, value)
+	})
+}
+
 // Delete provided @value object (single or slice) from @table.
 func (db *DataBase) DeleteValue(table *Table, value interface{}) error {
 	if table == nil || value == nil {
@@ -836,6 +958,13 @@ func (db *DataBase) DeleteValue(table *Table, value interface{}) error {
 		}
 
 		return err
+	})
+}
+
+// Delete provided @value object (single or slice) from @table with @ctx context.
+func (db *DataBase) DeleteValueContext(ctx context.Context, table *Table, value interface{}) error {
+	return doWithContext(ctx, func() error {
+		return db.DeleteValue(table, value)
 	})
 }
 
