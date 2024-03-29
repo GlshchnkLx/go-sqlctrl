@@ -22,3 +22,4 @@ go.work
 
 # Temporary files (testing)
 test.json
+test.db

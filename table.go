@@ -39,6 +39,10 @@ func (field *TableField) GetHash() string {
 	return hex.EncodeToString(tableHash[:])
 }
 
+// Parses given struct field. Return value is true if operation was successful.
+// This method tries to parse struct field tag at first. If NAME or TYPE was
+// not found in tag then it retrives appropriate info from field throught
+// reflection.
 func (field *TableField) ReflectParse(reflectStructField reflect.StructField) bool {
 	reflectStructFieldTag := reflectStructField.Tag
 
@@ -132,6 +136,7 @@ type Table struct {
 	AutoIncrement *TableField `json:"autoIncrement"`
 }
 
+// returns current table hash
 func (table *Table) GetHash() string {
 	tableJson, err := json.Marshal(table)
 	if err != nil {
@@ -183,7 +188,7 @@ func (table *Table) convertInterfaceToInterfaceArray(value interface{}) (valueAr
 	valueReflectValue := reflect.ValueOf(value)
 
 	if value == nil {
-		err = fmt.Errorf("no value")
+		err = ErrInvalidArgument
 		return
 	}
 
@@ -290,6 +295,10 @@ func sqlFieldValueToString(goType reflect.Kind, reflectValue reflect.Value) (val
 }
 
 func (table *Table) sqlInsertValue(valueArray []interface{}) ([]string, error) {
+	if len(valueArray) == 0 {
+		return []string{}, ErrInvalidArgument
+	}
+
 	request := []string{}
 
 	fieldGoNameArray := []string{}
@@ -326,6 +335,10 @@ func (table *Table) sqlInsertValue(valueArray []interface{}) ([]string, error) {
 }
 
 func (table *Table) sqlReplaceValue(valueArray []interface{}) ([]string, error) {
+	if len(valueArray) == 0 {
+		return []string{}, ErrInvalidArgument
+	}
+
 	request := []string{}
 
 	fieldGoNameArray := []string{}
@@ -360,6 +373,10 @@ func (table *Table) sqlReplaceValue(valueArray []interface{}) ([]string, error) 
 }
 
 func (table *Table) sqlUpdateValue(valueArray []interface{}) ([]string, error) {
+	if len(valueArray) == 0 {
+		return []string{}, ErrInvalidArgument
+	}
+
 	request := []string{}
 
 	if table.AutoIncrement == nil {
@@ -403,6 +420,10 @@ func (table *Table) sqlUpdateValue(valueArray []interface{}) ([]string, error) {
 }
 
 func (table *Table) sqlDeleteValue(valueArray []interface{}) ([]string, error) {
+	if len(valueArray) == 0 {
+		return []string{}, ErrInvalidArgument
+	}
+
 	request := []string{}
 
 	if table.AutoIncrement == nil {
@@ -427,7 +448,17 @@ func (table *Table) sqlDeleteValue(valueArray []interface{}) ([]string, error) {
 
 //--------------------------------------------------------------------------------//
 
+// Creates a Table object with specified tableName and tableStruct.
+// If tableName is not an empty string then it used as table name for sql queries
+// in table methods. A tableStruct object must be a some custom struct object
+// otherwise ErrValueMustBeAStructure will be returned. Each field of tableStruct
+// is parsed and saved in Table object for future use.
 func NewTable(tableName string, tableStruct interface{}) (table *Table, err error) {
+	if tableStruct == nil {
+		err = ErrInvalidArgument
+		return
+	}
+
 	tableReflectType := reflect.TypeOf(tableStruct)
 
 	if tableReflectType.Kind() != reflect.Struct {

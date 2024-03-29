@@ -39,27 +39,27 @@ import (
 
 // tagging structures for the module
 type User struct {
-	ID   int64  `sql:"id, INTEGER, PRIMARY_KEY, AUTO_INCREMENT"`
-	Name string `sql:"name, TEXT(32)"`
+	ID   int64  `sql:"NAME=id, TYPE=INTEGER, PRIMARY_KEY, AUTO_INCREMENT"`
+	Name string `sql:"NAME=name, TYPE=TEXT(32)"`
 }
 
 type Token struct {
-	ID      int64  `sql:"id, INTEGER, PRIMARY_KEY, AUTO_INCREMENT"`
-	Content string `sql:"content, TEXT(64), UNIQUE"`
+	ID      int64  `sql:"NAME=id, TYPE=INTEGER, PRIMARY_KEY, AUTO_INCREMENT"`
+	Content string `sql:"NAME=content, TYPE=TEXT(64), UNIQUE"`
 }
 
 type UserToken struct {
-	ID int64 `sql:"id, INTEGER, PRIMARY_KEY, AUTO_INCREMENT"`
+	ID int64 `sql:"NAME=id, TYPE=INTEGER, PRIMARY_KEY, AUTO_INCREMENT"`
 
-	UserID  int64 `sql:"user_id"`
-	TokenID int64 `sql:"token_id"`
+	UserID  int64 `sql:"NAME=user_id"`
+	TokenID int64 `sql:"NAME=token_id"`
 }
 
 type UserTokenView struct {
-	UserID       int64  `sql:"user_id"`
-	TokenID      int64  `sql:"token_id"`
-	UserName     string `sql:"user_name"`
-	TokenContent string `sql:"token_content"`
+	UserID       int64  `sql:"NAME=user_id"`
+	TokenID      int64  `sql:"NAME=token_id"`
+	UserName     string `sql:"NAME=user_name"`
+	TokenContent string `sql:"NAME=token_content"`
 }
 
 func main() {
