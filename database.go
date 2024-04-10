@@ -418,6 +418,31 @@ func (db *DataBase) DropTable(table *Table) error {
 	<-db.schemeMutex
 
 	return db.schemeExport()
+
+// Truncates specified @table in database (clear all rows).
+func (db *DataBase) TruncateTable(table *Table) error {
+	if table == nil {
+		return ErrInvalidArgument
+	}
+
+	if !db.CheckExistTable(table) {
+		return ErrTableDoesNotExists
+	}
+
+	requestArray := []string{
+		fmt.Sprintf("DELETE FROM `%s`;", table.SqlName),
+	}
+
+	return db.Exec(func(db *DataBase, sqlTx *sql.Tx) (err error) {
+		for _, request := range requestArray {
+			_, err = sqlTx.Exec(request)
+			if err != nil {
+				return
+			}
+		}
+
+		return
+	})
 }
 
 func MigrationTableAuto(tableA, tableB *Table) (string, error) {
