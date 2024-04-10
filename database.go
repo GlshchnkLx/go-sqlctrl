@@ -12,6 +12,15 @@ import (
 )
 
 //--------------------------------------------------------------------------------//
+// constants
+//--------------------------------------------------------------------------------//
+
+const (
+	schemaTableName      string = "sql_schema_table" // table to store tables for migration
+	schemaFieldTableName string = "sql_schema_field" // table to store table fileds for migration
+)
+
+//--------------------------------------------------------------------------------//
 
 type DataBase struct {
 	mutex chan interface{}
@@ -25,11 +34,35 @@ type DataBase struct {
 	scheme      map[string]*Table
 }
 
+// Adapter type for export-import sql schema. Saves table data
+type sqlSchemaTable struct {
+	Id              int64  `sql:"NAME=id, TYPE=INTEGER, PRIMARY_KEY, AUTO_INCREMENT"`
+	GoName          string `sql:"NAME=goName, TYPE=TEXT(64), NOT_NULL"`
+	SqlName         string `sql:"NAME=sqlName, TYPE=TEXT(64), NOT_NULL"`
+	MigrationNumber int64  `sql:"NAME=migrationNumber, TYPE=INTEGER, NOT_NULL"`
+	Hash            string `sql:"NAME=hash, TYPE=TEXT(256), NOT_NULL"`
+}
+
+// Adapter type for export-import sql schema. Saves table field data
+type sqlSchemaField struct {
+	Id              int64   `sql:"NAME=id, TYPE=INTEGER, PRIMARY_KEY, AUTO_INCREMENT"`
+	TableId         int64   `sql:"NAME=tableId, TYPE=INTEGER, NOT_NULL"`
+	GoName          string  `sql:"NAME=goName, TYPE=TEXT(64), NOT_NULL"`
+	SqlName         string  `sql:"NAME=sqlName, TYPE=TEXT(64), NOT_NULL"`
+	SqlType         string  `sql:"NAME=sqlType, TYPE=TEXT(64), NOT_NULL"`
+	IsPrimaryKey    bool    `sql:"NAME=isPrimaryKey, TYPE=BOOL, NOT_NULL"`
+	IsAutoIncrement bool    `sql:"NAME=isAutoIncrement, TYPE=BOOL, NOT_NULL"`
+	IsUnique        bool    `sql:"NAME=isUnique, TYPE=BOOL, NOT_NULL"`
+	IsNotNull       bool    `sql:"NAME=isNotNull, TYPE=BOOL, NOT_NULL"`
+	ValueDefault    *string `sql:"NAME=valueDefault, TYPE=TEXT(64)"`
+	ValueCheck      *string `sql:"NAME=valueCheck, TYPE=TEXT(64)"`
+}
+
 //--------------------------------------------------------------------------------//
 // scheme control
 //--------------------------------------------------------------------------------//
 
-func (db *DataBase) schemeImport() error {
+func (db *DataBase) schemeImportJson() error {
 	db.schemeMutex <- true
 	defer func() {
 		<-db.schemeMutex
@@ -50,7 +83,111 @@ func (db *DataBase) schemeImport() error {
 	return nil
 }
 
-func (db *DataBase) schemeExport() error {
+func (db *DataBase) schemeImportFromDataBase() error {
+	// db.schemeMutex <- true
+	// defer func() {
+	// 	<-db.schemeMutex
+	// }()
+
+	schemaTable, err := NewTable(schemaTableName, sqlSchemaTable{})
+	if err != nil {
+		return err
+	}
+
+	db.schemeMutex <- true
+	db.scheme[schemaTable.GoName] = schemaTable
+	<-db.schemeMutex
+
+	schemaTableArrayIface, err := db.SelectAll(schemaTable)
+	if err != nil {
+		delete(db.scheme, schemaTable.GoName) // should be removed for empty database. otherwise -- will be error on export
+		return err
+	}
+
+	schemaTableArray, ok := schemaTableArrayIface.([]sqlSchemaTable)
+	if !ok {
+		return errors.New("wrong cast schemaTableArrayIface to []SqlSchemaTable")
+	}
+
+	if len(schemaTableArray) == 0 {
+		return ErrMigrationTableIsEmpty
+	}
+
+	schemaFieldTable, err := NewTable(schemaFieldTableName, sqlSchemaField{})
+	if err != nil {
+		return err
+	}
+
+	db.schemeMutex <- true
+	db.scheme[schemaFieldTable.GoName] = schemaFieldTable
+	<-db.schemeMutex
+
+	if !db.CheckExistTable(schemaFieldTable) {
+		return ErrTableDoesNotExists
+	}
+
+	scheme := map[string]*Table{}
+
+	for _, schemaTable := range schemaTableArray {
+
+		schemaFieldArrayIface, err := db.SelectValue(schemaFieldTable, fmt.Sprintf("tableId = %d", schemaTable.Id))
+		if err != nil {
+			return err
+		}
+
+		schemaFieldArray, ok := schemaFieldArrayIface.([]sqlSchemaField)
+		if !ok {
+			return errors.New("wrong cast schemaFieldArrayIface to []sqlSchemaField")
+		}
+
+		fieldNameArray := []string{}
+		fieldMap := map[string]*TableField{}
+		autoIncrement := TableField{}
+
+		for _, schemaField := range schemaFieldArray {
+			fieldNameArray = append(fieldNameArray, schemaField.GoName)
+
+			tableField := TableField{
+				GoName:          schemaField.GoName,
+				SqlName:         schemaField.SqlName,
+				SqlType:         schemaField.SqlType,
+				IsPrimaryKey:    schemaField.IsPrimaryKey,
+				IsAutoIncrement: schemaField.IsAutoIncrement,
+				IsUnique:        schemaField.IsUnique,
+				IsNotNull:       schemaField.IsNotNull,
+				ValueDefault:    schemaField.ValueDefault,
+				ValueCheck:      schemaField.ValueCheck,
+			}
+
+			fieldMap[schemaField.GoName] = &tableField
+
+			if schemaField.IsAutoIncrement {
+				autoIncrement = tableField
+			}
+		}
+
+		table := Table{
+			GoName:          schemaTable.GoName,
+			SqlName:         schemaTable.SqlName,
+			FieldNameArray:  fieldNameArray,
+			FieldMap:        fieldMap,
+			MigrationNumber: schemaTable.MigrationNumber,
+			AutoIncrement:   &autoIncrement,
+		}
+
+		scheme[table.GoName] = &table
+	}
+
+	db.schemeMutex <- true
+	for k, v := range scheme {
+		db.scheme[k] = v
+	}
+	<-db.schemeMutex
+
+	return nil
+}
+
+func (db *DataBase) schemeExportJson() error {
 	db.schemeMutex <- true
 	defer func() {
 		<-db.schemeMutex
@@ -69,10 +206,96 @@ func (db *DataBase) schemeExport() error {
 	return nil
 }
 
+func (db *DataBase) schemeExportToDatabase() error {
+	// db.schemeMutex <- true
+	// defer func() {
+	// 	<-db.schemeMutex
+	// }()
+
+	schemaTable, err := NewTable(schemaTableName, sqlSchemaTable{})
+	if err != nil {
+		return err
+	}
+
+	exist := db.CheckExistTable(schemaTable)
+	if !exist {
+		err = db.CreateTable(schemaTable)
+		if err != nil {
+			return err
+		}
+	}
+
+	db.schemeMutex <- true
+	schemaTable = db.scheme[schemaTable.GoName] // update schemaTable with new or old value
+	<-db.schemeMutex
+
+	err = db.TruncateTable(schemaTable)
+	if err != nil {
+		return err
+	}
+
+	schemaFieldTable, err := db.NewTable(0, schemaFieldTableName, sqlSchemaField{})
+	if err != nil {
+		return err
+	}
+
+	exist = db.CheckExistTable(schemaFieldTable)
+	if !exist {
+		err = db.CreateTable(schemaFieldTable)
+		if err != nil {
+			return err
+		}
+	}
+
+	err = db.TruncateTable(schemaFieldTable)
+	if err != nil {
+		return err
+	}
+
+	for _, table := range db.scheme {
+		if table.SqlName == schemaTableName || table.SqlName == schemaFieldTableName { // if migration table -- do not export
+			continue
+		}
+
+		id, err := db.InsertValue(schemaTable, sqlSchemaTable{
+			GoName:          table.GoName,
+			SqlName:         table.SqlName,
+			MigrationNumber: table.MigrationNumber,
+			Hash:            table.GetHash(),
+		})
+		if err != nil {
+			return err
+		}
+
+		for _, fieldName := range table.FieldNameArray {
+			field := table.FieldMap[fieldName]
+
+			_, err = db.InsertValue(schemaFieldTable, sqlSchemaField{
+				TableId:         id,
+				GoName:          field.GoName,
+				SqlName:         field.SqlName,
+				SqlType:         field.SqlType,
+				IsPrimaryKey:    field.IsPrimaryKey,
+				IsAutoIncrement: field.IsAutoIncrement,
+				IsUnique:        field.IsUnique,
+				IsNotNull:       field.IsNotNull,
+				ValueDefault:    field.ValueDefault,
+				ValueCheck:      field.ValueCheck,
+			})
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
+}
+
 // Checks if received @table exist in database object
 func (db *DataBase) CheckExistTable(table *Table) bool {
 	if table == nil {
 		return false
+		panic("table == nil")
 	}
 
 	db.schemeMutex <- true
@@ -82,7 +305,8 @@ func (db *DataBase) CheckExistTable(table *Table) bool {
 	return schemeTable != nil
 }
 
-// Compares hashes of argument table object and table object from database map
+// Compares hashes of argument table object and table object from database map.
+// Returns result of "not equal".
 func (db *DataBase) CheckHashTable(table *Table) bool {
 	db.schemeMutex <- true
 	schemeTable := db.scheme[table.GoName]
@@ -381,7 +605,7 @@ func (db *DataBase) CreateTable(table *Table) error {
 	db.scheme[table.GoName] = table
 	<-db.schemeMutex
 
-	return db.schemeExport()
+	return db.schemeExportToDatabase()
 }
 
 // Drops specified @table in database and removes from database object.
@@ -417,7 +641,8 @@ func (db *DataBase) DropTable(table *Table) error {
 	delete(db.scheme, table.GoName)
 	<-db.schemeMutex
 
-	return db.schemeExport()
+	return db.schemeExportToDatabase()
+}
 
 // Truncates specified @table in database (clear all rows).
 func (db *DataBase) TruncateTable(table *Table) error {
@@ -552,7 +777,7 @@ func (db *DataBase) MigrationTable(table *Table, handler func(*Table, *Table) (s
 	db.scheme[tableB.GoName] = tableB
 	<-db.schemeMutex
 
-	return db.schemeExport()
+	return db.schemeExportToDatabase()
 }
 
 //--------------------------------------------------------------------------------//
@@ -905,20 +1130,10 @@ func NewDatabase(sqlDriver, sqlSource, sqlScheme string) (*DataBase, error) {
 		return nil, err
 	}
 
-	err = db.schemeImport()
-	if err != nil {
-		ierr, ok := err.(*fs.PathError)
-		if !ok {
-			return nil, err
-		}
-
-		if ierr.Op == "open" && os.IsNotExist(ierr) {
-			err = db.schemeExport()
-			if err != nil {
-				return nil, err
-			}
-		}
-	}
+	_ = db.schemeImportFromDataBase()
+	// if err != nil {
+	// 	fmt.Println("db.schemeImportFromDataBase err: ", err)
+	// }
 
 	return db, nil
 }
