@@ -3,8 +3,8 @@ package sqlctrl
 import (
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
-	"io/fs"
 	"os"
 	"reflect"
 	"regexp"
@@ -294,7 +294,6 @@ func (db *DataBase) schemeExportToDatabase() error {
 // Checks if received @table exist in database object
 func (db *DataBase) CheckExistTable(table *Table) bool {
 	if table == nil {
-		return false
 		panic("table == nil")
 	}
 
@@ -516,13 +515,13 @@ func (db *DataBase) ExecWithTable(table *Table, handler func(*DataBase, *sql.Tx,
 // Table control
 //--------------------------------------------------------------------------------//
 
-func (db *DataBase) NewTable(tableName string, tableStruct interface{}) (*Table, error) {
+func (db *DataBase) NewTable(migrationNumber int64, tableName string, tableStruct interface{}) (*Table, error) {
 	var (
 		table *Table
 		err   error
 	)
 
-	if len(tableName) == 0 || tableStruct == nil {
+	if len(tableName) == 0 || tableStruct == nil || migrationNumber < 0 {
 		return nil, ErrInvalidArgument
 	}
 
@@ -530,13 +529,127 @@ func (db *DataBase) NewTable(tableName string, tableStruct interface{}) (*Table,
 	if err != nil {
 		return nil, err
 	}
+	table.MigrationNumber = migrationNumber
 
-	err = db.MigrationTable(table, nil)
+	if !db.CheckExistTable(table) {
+		err = db.CreateTable(table)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	// not need to migrate schema table itself
+	if tableName == schemaTableName || tableName == schemaFieldTableName {
+		return table, nil
+	}
+
+	// no migration required for client application
+	if migrationNumber == 0 {
+		return table, nil
+	}
+
+	dbMigrationNumber, err := db.getTableMigrationNumber(table)
 	if err != nil {
 		return nil, err
 	}
 
+	fmt.Println("migrationNumber: ", migrationNumber)
+	fmt.Println("dbMigrationNumber: ", dbMigrationNumber)
+
+	if dbMigrationNumber > migrationNumber {
+		return nil, errors.New("client is outdated")
+	}
+
+	if dbMigrationNumber == migrationNumber {
+		equal, err := db.checkDBHashTable(table)
+		if err != nil {
+			return nil, err
+		}
+
+		if !equal {
+			return nil, errors.New("database and table hash are diffrent")
+		}
+
+		if db.CheckHashTable(table) {
+			return nil, errors.New("wrong migration number received. table must migrate")
+		}
+
+		fmt.Println("dbMigrationNumber == migrationNumber")
+
+		return table, nil // no need to migrate
+	}
+
+	err = db.MigrationTable(table, nil, migrationNumber)
+	if err != nil {
+		fmt.Printf("table: %s - db.MigrationTable err: %v\n", tableName, err)
+		return nil, err
+	}
+
 	return table, nil
+}
+
+// Returns migration number of schema from db object (imported from database) for given @table.
+// @table and table from db.schema may be not equal (first one from user, second - from db import)
+func (db *DataBase) getTableMigrationNumber(table *Table) (int64, error) {
+	if table == nil {
+		return 0, ErrInvalidArgument
+	}
+
+	t, ok := db.scheme[table.GoName]
+	if !ok {
+		return 0, ErrTableDoesNotExists
+	}
+
+	return t.MigrationNumber, nil
+}
+
+// Check @table and database hash. Returns result of equal
+func (db *DataBase) checkDBHashTable(table *Table) (bool, error) {
+	if table == nil {
+		return false, ErrInvalidArgument
+	}
+
+	dbHash, err := db.getTableDatabaseHash(table)
+	if err != nil {
+		return false, err
+	}
+
+	tableHash := table.GetHash()
+
+	return dbHash == tableHash, nil
+}
+
+// Returns hash from database for given @table.
+func (db *DataBase) getTableDatabaseHash(table *Table) (string, error) {
+	if table == nil {
+		return "", ErrInvalidArgument
+	}
+
+	schemaTable, err := NewTable(schemaTableName, sqlSchemaTable{})
+	if err != nil {
+		return "", err
+	}
+
+	db.schemeMutex <- true
+	schemaTable = db.scheme[schemaTable.GoName]
+	<-db.schemeMutex
+
+	if schemaTable == nil {
+		return "", errors.New("schemaTable is nil")
+	}
+
+	respIface, err := db.SelectValueSingle(schemaTable, fmt.Sprintf("goName = \"%s\"", table.GoName))
+	if err != nil {
+		fmt.Println("db.SelectValueSingle err: ", err)
+		return "", err
+	}
+
+	resp, ok := respIface.(sqlSchemaTable)
+	if !ok {
+		return "", errors.New("wrong type assert respIface to sqlSchemaTable")
+	}
+
+	return resp.Hash, nil
 }
 
 func (db *DataBase) sqlCreateTable(table *Table) (request []string, err error) {
@@ -710,14 +823,14 @@ func MigrationTableAuto(tableA, tableB *Table) (string, error) {
 	), nil
 }
 
-func (db *DataBase) MigrationTable(table *Table, handler func(*Table, *Table) (string, error)) error {
+func (db *DataBase) MigrationTable(table *Table, handler func(*Table, *Table) (string, error), migrationNumber int64) error {
 	var (
 		requestUnit  string
 		requestArray []string
 		err          error
 	)
 
-	if table == nil {
+	if table == nil || migrationNumber < 0 {
 		return ErrInvalidArgument
 	}
 
@@ -726,8 +839,11 @@ func (db *DataBase) MigrationTable(table *Table, handler func(*Table, *Table) (s
 	}
 
 	if !db.CheckHashTable(table) {
+		fmt.Println(table.GoName, " - no need to migrate")
 		return nil
 	}
+
+	fmt.Println("migration!!!")
 
 	if handler == nil {
 		handler = MigrationTableAuto
@@ -741,6 +857,7 @@ func (db *DataBase) MigrationTable(table *Table, handler func(*Table, *Table) (s
 	tableB_Migration_SqlName := fmt.Sprintf("_%s_migration", tableB.SqlName)
 	tableB_Rename_SqlName := tableB.SqlName
 	tableB.SqlName = tableB_Migration_SqlName
+	tableB.MigrationNumber = migrationNumber
 
 	requestArray, err = db.sqlCreateTable(tableB)
 	if err != nil {
