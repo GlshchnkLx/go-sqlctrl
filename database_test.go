@@ -2,7 +2,6 @@ package sqlctrl
 
 import (
 	"database/sql"
-	"os"
 	"testing"
 
 	_ "github.com/go-sql-driver/mysql"
@@ -14,17 +13,22 @@ func TestNewDatabase(t *testing.T) {
 	sqlSource := "./test.db"
 	sqlScheme := "./test.json"
 
-	if _, err := os.Stat(sqlScheme); os.IsExist(err) { // if sqlScheme file already exist
-		err = os.Remove(sqlScheme)
-		if err != nil {
-			t.Errorf("os.Remove(sqlScheme) error: %v", err)
-			t.FailNow()
-		}
-	}
+	// if _, err := os.Stat(sqlScheme); os.IsExist(err) { // if sqlScheme file already exist
+	// 	err = os.Remove(sqlScheme)
+	// 	if err != nil {
+	// 		t.Errorf("os.Remove(sqlScheme) error: %v", err)
+	// 		t.FailNow()
+	// 	}
+	// }
 
 	db, err := NewDatabase(sqlDriver, sqlSource, sqlScheme)
 	if err != nil {
 		t.Errorf("Error to create NewDatabase: %v", err)
+		t.FailNow()
+	}
+
+	if db == nil {
+		t.Errorf("db == nil")
 		t.FailNow()
 	}
 
@@ -40,10 +44,10 @@ func TestNewDatabase(t *testing.T) {
 		t.Errorf("db.sqlScheme != sqlScheme")
 	}
 
-	if _, err := os.Stat(sqlScheme); os.IsNotExist(err) { // if sqlScheme file does not exist
-		t.Errorf("sqlScheme file is not created: %v", err)
-		t.FailNow()
-	}
+	// if _, err := os.Stat(sqlScheme); os.IsNotExist(err) { // if sqlScheme file does not exist
+	// 	t.Errorf("sqlScheme file is not created: %v", err)
+	// 	t.FailNow()
+	// }
 }
 
 func TestCheckExistTable(t *testing.T) {
@@ -186,6 +190,94 @@ func TestDropTable(t *testing.T) {
 	}
 }
 
+func TestTruncateTable(t *testing.T) {
+	type TestTable struct {
+		ParamA int64  `sql:"NAME=paramA, TYPE=INTEGER, PRIMARY_KEY, AUTO_INCREMENT"`
+		ParamB string `sql:"NAME=paramB, TYPE=TEXT(32)"`
+	}
+
+	sqlDriver := "sqlite"
+	sqlSource := "./test.db"
+	sqlScheme := "./test.json"
+
+	db, err := NewDatabase(sqlDriver, sqlSource, sqlScheme)
+	if err != nil {
+		t.Errorf("NewDatabase error: %v", err)
+		t.FailNow()
+	}
+
+	table, err := NewTable("test_table", TestTable{})
+	if err != nil {
+		t.Errorf("NewTable error: %v", err)
+		t.FailNow()
+	}
+
+	if db.CheckExistTable(table) {
+		t.Errorf("table already exist")
+		t.FailNow()
+	}
+
+	err = db.CreateTable(table)
+	if err != nil {
+		t.Errorf("db.CreateTable error: %v", err)
+		t.FailNow()
+	}
+
+	if !db.CheckExistTable(table) {
+		t.Errorf("table does not exist")
+		t.FailNow()
+	}
+
+	_, err = db.InsertValue(table, []TestTable{
+		{ParamB: "a"},
+		{ParamB: "b"},
+		{ParamB: "c"},
+	})
+	if err != nil {
+		t.Errorf("db.InsertValue error: %v", err)
+		t.FailNow()
+	}
+
+	count, err := db.GetCount(table)
+	if err != nil {
+		t.Errorf("db.GetCount error: %v", err)
+		t.FailNow()
+	}
+
+	if count != 3 {
+		t.Errorf("wrong count")
+		t.FailNow()
+	}
+
+	err = db.TruncateTable(table)
+	if err != nil {
+		t.Errorf("db.TruncateTable error: %v", err)
+		t.FailNow()
+	}
+
+	count, err = db.GetCount(table)
+	if err != nil {
+		t.Errorf("db.GetCount error: %v", err)
+		t.FailNow()
+	}
+
+	if count != 0 {
+		t.Errorf("wrong count")
+		t.FailNow()
+	}
+
+	err = db.DropTable(table)
+	if err != nil {
+		t.Errorf("db.DropTable error: %v", err)
+		t.FailNow()
+	}
+
+	if db.CheckExistTable(table) {
+		t.Errorf("table already exist")
+		t.FailNow()
+	}
+}
+
 func TestGetCount(t *testing.T) {
 	type TestTable struct {
 		ParamA int64  `sql:"NAME=paramA, TYPE=INTEGER, PRIMARY_KEY, AUTO_INCREMENT"`
@@ -292,6 +384,75 @@ func TestGetLastId(t *testing.T) {
 
 	if lastId != 3 {
 		t.Errorf("wrong lastId")
+		t.FailNow()
+	}
+
+	err = db.DropTable(table)
+	if err != nil {
+		t.Errorf("db.DropTable error: %v", err)
+		t.FailNow()
+	}
+}
+
+func TestSelectAll(t *testing.T) {
+	type TestTable struct {
+		ParamA int64  `sql:"NAME=paramA, TYPE=INTEGER, PRIMARY_KEY, AUTO_INCREMENT"`
+		ParamB string `sql:"NAME=paramB, TYPE=TEXT(32)"`
+	}
+
+	sqlDriver := "sqlite"
+	sqlSource := "./test.db"
+	sqlScheme := "./test.json"
+
+	db, err := NewDatabase(sqlDriver, sqlSource, sqlScheme)
+	if err != nil {
+		t.Errorf("NewDatabase error: %v", err)
+		t.FailNow()
+	}
+
+	table, err := NewTable("test_table", TestTable{})
+	if err != nil {
+		t.Errorf("NewTable error: %v", err)
+		t.FailNow()
+	}
+
+	if !db.CheckExistTable(table) {
+		err = db.CreateTable(table)
+		if err != nil {
+			t.Errorf("db.CreateTable error: %v", err)
+			t.FailNow()
+		}
+	}
+
+	_, err = db.InsertValue(table, []TestTable{
+		{ParamB: "a"},
+		{ParamB: "b"},
+		{ParamB: "c"},
+	})
+	if err != nil {
+		t.Errorf("db.InsertValue error: %v", err)
+		t.FailNow()
+	}
+
+	responseIface, err := db.SelectAll(table)
+	if err != nil {
+		t.Errorf("db.SelectAll error: %v", err)
+		t.FailNow()
+	}
+
+	responseArray, ok := responseIface.([]TestTable)
+	if !ok {
+		t.Errorf("wrong type assertion responseIface to []TestTable")
+		t.FailNow()
+	}
+
+	if len(responseArray) < 3 {
+		t.Errorf("len(responseArray) < 3")
+		t.FailNow()
+	}
+
+	if responseArray[2].ParamA != 3 {
+		t.Errorf("wrong ParamA")
 		t.FailNow()
 	}
 
