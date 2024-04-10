@@ -27,7 +27,6 @@ type DataBase struct {
 
 	sqlDriver string
 	sqlSource string
-	sqlScheme string
 	sqlRaw    *sql.DB
 
 	schemeMutex chan interface{}
@@ -62,13 +61,17 @@ type sqlSchemaField struct {
 // scheme control
 //--------------------------------------------------------------------------------//
 
-func (db *DataBase) schemeImportJson() error {
+func (db *DataBase) SchemeImportJson(sqlSchemeFilePath string) error {
 	db.schemeMutex <- true
 	defer func() {
 		<-db.schemeMutex
 	}()
 
-	schemeByte, err := os.ReadFile(db.sqlScheme)
+	if len(sqlSchemeFilePath) == 0 {
+		return ErrInvalidArgument
+	}
+
+	schemeByte, err := os.ReadFile(sqlSchemeFilePath)
 	if err != nil {
 		return err
 	}
@@ -187,18 +190,22 @@ func (db *DataBase) schemeImportFromDataBase() error {
 	return nil
 }
 
-func (db *DataBase) schemeExportJson() error {
+func (db *DataBase) SchemeExportJson(sqlSchemeFilePath string) error {
 	db.schemeMutex <- true
 	defer func() {
 		<-db.schemeMutex
 	}()
+
+	if len(sqlSchemeFilePath) == 0 {
+		return ErrInvalidArgument
+	}
 
 	schemeByte, err := json.MarshalIndent(db.scheme, "", "\t")
 	if err != nil {
 		return err
 	}
 
-	err = os.WriteFile(db.sqlScheme, schemeByte, 0666)
+	err = os.WriteFile(sqlSchemeFilePath, schemeByte, 0666)
 	if err != nil {
 		return err
 	}
@@ -1221,10 +1228,9 @@ func (db *DataBase) DeleteValue(table *Table, value interface{}) error {
 //--------------------------------------------------------------------------------//
 
 // Creates a Database object specified by its database driver @sqlDriver
-// and a driver-specific data source @sqlSource. If @sqlScheme file path exists
-// imports provided database schema otherwise exports it.
-func NewDatabase(sqlDriver, sqlSource, sqlScheme string) (*DataBase, error) {
-	if len(sqlDriver) == 0 || len(sqlSource) == 0 || len(sqlScheme) == 0 {
+// and a driver-specific data source @sqlSource.
+func NewDatabase(sqlDriver, sqlSource string) (*DataBase, error) {
+	if len(sqlDriver) == 0 || len(sqlSource) == 0 {
 		return nil, ErrInvalidArgument
 	}
 
@@ -1234,7 +1240,6 @@ func NewDatabase(sqlDriver, sqlSource, sqlScheme string) (*DataBase, error) {
 
 			sqlDriver: sqlDriver,
 			sqlSource: sqlSource,
-			sqlScheme: sqlScheme,
 
 			schemeMutex: make(chan interface{}, 1),
 			scheme:      map[string]*Table{},

@@ -2,6 +2,8 @@ package sqlctrl
 
 import (
 	"database/sql"
+	"fmt"
+	"os"
 	"testing"
 
 	_ "github.com/go-sql-driver/mysql"
@@ -11,7 +13,6 @@ import (
 func TestNewDatabase(t *testing.T) {
 	sqlDriver := "sqlite"
 	sqlSource := "./test.db"
-	sqlScheme := "./test.json"
 
 	// if _, err := os.Stat(sqlScheme); os.IsExist(err) { // if sqlScheme file already exist
 	// 	err = os.Remove(sqlScheme)
@@ -21,7 +22,7 @@ func TestNewDatabase(t *testing.T) {
 	// 	}
 	// }
 
-	db, err := NewDatabase(sqlDriver, sqlSource, sqlScheme)
+	db, err := NewDatabase(sqlDriver, sqlSource)
 	if err != nil {
 		t.Errorf("Error to create NewDatabase: %v", err)
 		t.FailNow()
@@ -40,10 +41,6 @@ func TestNewDatabase(t *testing.T) {
 		t.Errorf("db.sqlSource != sqlSource")
 	}
 
-	if db.sqlScheme != sqlScheme {
-		t.Errorf("db.sqlScheme != sqlScheme")
-	}
-
 	// if _, err := os.Stat(sqlScheme); os.IsNotExist(err) { // if sqlScheme file does not exist
 	// 	t.Errorf("sqlScheme file is not created: %v", err)
 	// 	t.FailNow()
@@ -58,9 +55,8 @@ func TestCheckExistTable(t *testing.T) {
 
 	sqlDriver := "sqlite"
 	sqlSource := "./test.db"
-	sqlScheme := "./test.json"
 
-	db, err := NewDatabase(sqlDriver, sqlSource, sqlScheme)
+	db, err := NewDatabase(sqlDriver, sqlSource)
 	if err != nil {
 		t.Errorf("NewDatabase error: %v", err)
 		t.FailNow()
@@ -103,9 +99,8 @@ func TestCreateTable(t *testing.T) {
 
 	sqlDriver := "sqlite"
 	sqlSource := "./test.db"
-	sqlScheme := "./test.json"
 
-	db, err := NewDatabase(sqlDriver, sqlSource, sqlScheme)
+	db, err := NewDatabase(sqlDriver, sqlSource)
 	if err != nil {
 		t.Errorf("NewDatabase error: %v", err)
 		t.FailNow()
@@ -148,9 +143,8 @@ func TestDropTable(t *testing.T) {
 
 	sqlDriver := "sqlite"
 	sqlSource := "./test.db"
-	sqlScheme := "./test.json"
 
-	db, err := NewDatabase(sqlDriver, sqlSource, sqlScheme)
+	db, err := NewDatabase(sqlDriver, sqlSource)
 	if err != nil {
 		t.Errorf("NewDatabase error: %v", err)
 		t.FailNow()
@@ -198,9 +192,8 @@ func TestTruncateTable(t *testing.T) {
 
 	sqlDriver := "sqlite"
 	sqlSource := "./test.db"
-	sqlScheme := "./test.json"
 
-	db, err := NewDatabase(sqlDriver, sqlSource, sqlScheme)
+	db, err := NewDatabase(sqlDriver, sqlSource)
 	if err != nil {
 		t.Errorf("NewDatabase error: %v", err)
 		t.FailNow()
@@ -286,9 +279,8 @@ func TestGetCount(t *testing.T) {
 
 	sqlDriver := "sqlite"
 	sqlSource := "./test.db"
-	sqlScheme := "./test.json"
 
-	db, err := NewDatabase(sqlDriver, sqlSource, sqlScheme)
+	db, err := NewDatabase(sqlDriver, sqlSource)
 	if err != nil {
 		t.Errorf("NewDatabase error: %v", err)
 		t.FailNow()
@@ -344,9 +336,8 @@ func TestGetLastId(t *testing.T) {
 
 	sqlDriver := "sqlite"
 	sqlSource := "./test.db"
-	sqlScheme := "./test.json"
 
-	db, err := NewDatabase(sqlDriver, sqlSource, sqlScheme)
+	db, err := NewDatabase(sqlDriver, sqlSource)
 	if err != nil {
 		t.Errorf("NewDatabase error: %v", err)
 		t.FailNow()
@@ -402,9 +393,8 @@ func TestSelectAll(t *testing.T) {
 
 	sqlDriver := "sqlite"
 	sqlSource := "./test.db"
-	sqlScheme := "./test.json"
 
-	db, err := NewDatabase(sqlDriver, sqlSource, sqlScheme)
+	db, err := NewDatabase(sqlDriver, sqlSource)
 	if err != nil {
 		t.Errorf("NewDatabase error: %v", err)
 		t.FailNow()
@@ -471,9 +461,8 @@ func TestSelectValue(t *testing.T) {
 
 	sqlDriver := "sqlite"
 	sqlSource := "./test.db"
-	sqlScheme := "./test.json"
 
-	db, err := NewDatabase(sqlDriver, sqlSource, sqlScheme)
+	db, err := NewDatabase(sqlDriver, sqlSource)
 	if err != nil {
 		t.Errorf("NewDatabase error: %v", err)
 		t.FailNow()
@@ -535,9 +524,8 @@ func TestSelectValueSingle(t *testing.T) {
 
 	sqlDriver := "sqlite"
 	sqlSource := "./test.db"
-	sqlScheme := "./test.json"
 
-	db, err := NewDatabase(sqlDriver, sqlSource, sqlScheme)
+	db, err := NewDatabase(sqlDriver, sqlSource)
 	if err != nil {
 		t.Errorf("NewDatabase error: %v", err)
 		t.FailNow()
@@ -599,9 +587,8 @@ func TestSelectValueById(t *testing.T) {
 
 	sqlDriver := "sqlite"
 	sqlSource := "./test.db"
-	sqlScheme := "./test.json"
 
-	db, err := NewDatabase(sqlDriver, sqlSource, sqlScheme)
+	db, err := NewDatabase(sqlDriver, sqlSource)
 	if err != nil {
 		t.Errorf("NewDatabase error: %v", err)
 		t.FailNow()
@@ -663,9 +650,8 @@ func TestInsertValue(t *testing.T) {
 
 	sqlDriver := "sqlite"
 	sqlSource := "./test.db"
-	sqlScheme := "./test.json"
 
-	db, err := NewDatabase(sqlDriver, sqlSource, sqlScheme)
+	db, err := NewDatabase(sqlDriver, sqlSource)
 	if err != nil {
 		t.Errorf("NewDatabase error: %v", err)
 		t.FailNow()
@@ -735,9 +721,8 @@ func TestReplaceValue(t *testing.T) {
 
 	sqlDriver := "sqlite"
 	sqlSource := "./test.db"
-	sqlScheme := "./test.json"
 
-	db, err := NewDatabase(sqlDriver, sqlSource, sqlScheme)
+	db, err := NewDatabase(sqlDriver, sqlSource)
 	if err != nil {
 		t.Errorf("NewDatabase error: %v", err)
 		t.FailNow()
@@ -809,9 +794,8 @@ func TestUpdateValue(t *testing.T) {
 
 	sqlDriver := "sqlite"
 	sqlSource := "./test.db"
-	sqlScheme := "./test.json"
 
-	db, err := NewDatabase(sqlDriver, sqlSource, sqlScheme)
+	db, err := NewDatabase(sqlDriver, sqlSource)
 	if err != nil {
 		t.Errorf("NewDatabase error: %v", err)
 		t.FailNow()
@@ -883,9 +867,8 @@ func TestDeleteValue(t *testing.T) {
 
 	sqlDriver := "sqlite"
 	sqlSource := "./test.db"
-	sqlScheme := "./test.json"
 
-	db, err := NewDatabase(sqlDriver, sqlSource, sqlScheme)
+	db, err := NewDatabase(sqlDriver, sqlSource)
 	if err != nil {
 		t.Errorf("NewDatabase error: %v", err)
 		t.FailNow()
@@ -951,9 +934,8 @@ func TestQuery(t *testing.T) {
 
 	sqlDriver := "sqlite"
 	sqlSource := "./test.db"
-	sqlScheme := "./test.json"
 
-	db, err := NewDatabase(sqlDriver, sqlSource, sqlScheme)
+	db, err := NewDatabase(sqlDriver, sqlSource)
 	if err != nil {
 		t.Errorf("NewDatabase error: %v", err)
 		t.FailNow()
@@ -1015,9 +997,8 @@ func TestQuerySingle(t *testing.T) {
 
 	sqlDriver := "sqlite"
 	sqlSource := "./test.db"
-	sqlScheme := "./test.json"
 
-	db, err := NewDatabase(sqlDriver, sqlSource, sqlScheme)
+	db, err := NewDatabase(sqlDriver, sqlSource)
 	if err != nil {
 		t.Errorf("NewDatabase error: %v", err)
 		t.FailNow()
@@ -1079,9 +1060,8 @@ func TestQueryWithTable(t *testing.T) {
 
 	sqlDriver := "sqlite"
 	sqlSource := "./test.db"
-	sqlScheme := "./test.json"
 
-	db, err := NewDatabase(sqlDriver, sqlSource, sqlScheme)
+	db, err := NewDatabase(sqlDriver, sqlSource)
 	if err != nil {
 		t.Errorf("NewDatabase error: %v", err)
 		t.FailNow()
@@ -1143,9 +1123,8 @@ func TestQuerySingleWithTable(t *testing.T) {
 
 	sqlDriver := "sqlite"
 	sqlSource := "./test.db"
-	sqlScheme := "./test.json"
 
-	db, err := NewDatabase(sqlDriver, sqlSource, sqlScheme)
+	db, err := NewDatabase(sqlDriver, sqlSource)
 	if err != nil {
 		t.Errorf("NewDatabase error: %v", err)
 		t.FailNow()
@@ -1207,9 +1186,8 @@ func TestExec(t *testing.T) {
 
 	sqlDriver := "sqlite"
 	sqlSource := "./test.db"
-	sqlScheme := "./test.json"
 
-	db, err := NewDatabase(sqlDriver, sqlSource, sqlScheme)
+	db, err := NewDatabase(sqlDriver, sqlSource)
 	if err != nil {
 		t.Errorf("NewDatabase error: %v", err)
 		t.FailNow()
@@ -1280,9 +1258,8 @@ func TestExecWithTable(t *testing.T) {
 
 	sqlDriver := "sqlite"
 	sqlSource := "./test.db"
-	sqlScheme := "./test.json"
 
-	db, err := NewDatabase(sqlDriver, sqlSource, sqlScheme)
+	db, err := NewDatabase(sqlDriver, sqlSource)
 	if err != nil {
 		t.Errorf("NewDatabase error: %v", err)
 		t.FailNow()
