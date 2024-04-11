@@ -560,8 +560,8 @@ func (db *DataBase) NewTable(migrationNumber int64, tableName string, tableStruc
 		return nil, err
 	}
 
-	fmt.Println("migrationNumber: ", migrationNumber)
-	fmt.Println("dbMigrationNumber: ", dbMigrationNumber)
+	// fmt.Println("migrationNumber: ", migrationNumber)
+	// fmt.Println("dbMigrationNumber: ", dbMigrationNumber)
 
 	if dbMigrationNumber > migrationNumber {
 		return nil, errors.New("client is outdated")
@@ -581,7 +581,7 @@ func (db *DataBase) NewTable(migrationNumber int64, tableName string, tableStruc
 			return nil, errors.New("wrong migration number received. table must migrate")
 		}
 
-		fmt.Println("dbMigrationNumber == migrationNumber")
+		// fmt.Println("dbMigrationNumber == migrationNumber")
 
 		return table, nil // no need to migrate
 	}
@@ -846,11 +846,11 @@ func (db *DataBase) MigrationTable(table *Table, handler func(*Table, *Table) (s
 	}
 
 	if !db.CheckHashTable(table) {
-		fmt.Println(table.GoName, " - no need to migrate")
+		// fmt.Println(table.GoName, " - no need to migrate")
 		return nil
 	}
 
-	fmt.Println("migration!!!")
+	// fmt.Println("migration!!!")
 
 	if handler == nil {
 		handler = MigrationTableAuto

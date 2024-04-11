@@ -1321,3 +1321,565 @@ func TestExecWithTable(t *testing.T) {
 		t.FailNow()
 	}
 }
+
+// Common test ////////////////////////////////////////////////////////////////
+
+// Test newly created database + migration
+func TestNewDatabaseWithMigration(t *testing.T) {
+	type User struct {
+		ID   int64  `sql:"NAME=id, TYPE=INTEGER, PRIMARY_KEY, AUTO_INCREMENT"`
+		Name string `sql:"NAME=name, TYPE=TEXT(32)"`
+		// Surname string `sql:"NAME=surname, TYPE=TEXT(32)"`
+		// Another string `sql:"NAME=another, TYPE=TEXT(32)"`
+	}
+
+	sqlDriver := "sqlite"
+	sqlSource := "./test.db"
+
+	err := os.Remove(sqlSource)
+	if err != nil {
+		t.Errorf("os.Remove error: %v", err)
+		t.FailNow()
+	}
+
+	db, err := NewDatabase(sqlDriver, sqlSource)
+	if err != nil {
+		t.Errorf("NewDatabase error: %v", err)
+		t.FailNow()
+	}
+
+	userTable, err := db.NewTable(11, "users", User{})
+	if err != nil {
+		t.Errorf("db.NewTable error: %v", err)
+		t.FailNow()
+	}
+
+	if !db.CheckExistTable(userTable) {
+		err = db.CreateTable(userTable)
+		if err != nil {
+			t.Errorf("db.NewTable error: %v", err)
+			t.FailNow()
+		}
+	}
+
+	lastId, err := db.InsertValue(userTable, User{
+		Name: "test1",
+		// Surname: "test2",
+		// Another: "test3",
+	})
+	if err != nil {
+		t.Errorf("db.InsertValue error: %v", err)
+		t.FailNow()
+	}
+
+	respIface, err := db.SelectValue(userTable, fmt.Sprintf("ID = %d", lastId))
+	if err != nil {
+		t.Errorf("db.SelectValue error: %v", err)
+		t.FailNow()
+	}
+
+	if respIface.([]User)[0].ID != lastId {
+		t.Errorf("respIface.(User).ID != lastId")
+		t.FailNow()
+	}
+}
+
+// Test diffrent migration number && changing of migration number in table
+func TestNewMigrationNumber(t *testing.T) {
+	type User struct {
+		ID   int64  `sql:"NAME=id, TYPE=INTEGER, PRIMARY_KEY, AUTO_INCREMENT"`
+		Name string `sql:"NAME=name, TYPE=TEXT(32)"`
+		// Surname string `sql:"NAME=surname, TYPE=TEXT(32)"`
+		// Another string `sql:"NAME=another, TYPE=TEXT(32)"`
+	}
+
+	sqlDriver := "sqlite"
+	sqlSource := "./test.db"
+
+	err := os.Remove(sqlSource)
+	if err != nil {
+		t.Errorf("os.Remove error: %v", err)
+		t.FailNow()
+	}
+
+	db, err := NewDatabase(sqlDriver, sqlSource)
+	if err != nil {
+		t.Errorf("NewDatabase error: %v", err)
+		t.FailNow()
+	}
+
+	var num int64 = 1
+	userTable, err := db.NewTable(num, "users", User{})
+	if err != nil {
+		t.Errorf("db.NewTable error: %v", err)
+		t.FailNow()
+	}
+
+	migrationNumber, err := db.getTableMigrationNumber(userTable)
+	if err != nil {
+		t.Errorf("db.getTableMigrationNumber error: %v", err)
+		t.FailNow()
+	}
+
+	if migrationNumber != num {
+		t.Errorf("migrationNumber != num (1)")
+		t.FailNow()
+	}
+
+	num = 2
+	userTable, err = db.NewTable(num, "users", User{})
+	if err != nil {
+		t.Errorf("db.NewTable error: %v", err)
+		t.FailNow()
+	}
+
+	migrationNumber, err = db.getTableMigrationNumber(userTable)
+	if err != nil {
+		t.Errorf("db.getTableMigrationNumber error: %v", err)
+		t.FailNow()
+	}
+
+	if migrationNumber != num {
+		t.Errorf("migrationNumber != num (2)")
+		t.FailNow()
+	}
+
+	num = 2
+	userTable, err = db.NewTable(num, "users", User{})
+	if err != nil {
+		t.Errorf("db.NewTable error: %v", err)
+		t.FailNow()
+	}
+
+	migrationNumber, err = db.getTableMigrationNumber(userTable)
+	if err != nil {
+		t.Errorf("db.getTableMigrationNumber error: %v", err)
+		t.FailNow()
+	}
+
+	if migrationNumber != num {
+		t.Errorf("migrationNumber != num (2)")
+		t.FailNow()
+	}
+
+	num = 1
+	_, err = db.NewTable(num, "users", User{})
+	if err == nil {
+		t.Errorf("err == nil")
+		t.FailNow()
+	}
+
+	num = 0
+	_, err = db.NewTable(num, "users", User{})
+	if err != nil {
+		t.Errorf("db.NewTable error: %v", err)
+		t.FailNow()
+	}
+}
+
+// Test Up migrations
+
+func TestUpMigration(t *testing.T) {
+	name1 := "name1"
+	a := struct {
+		ID   int64  `sql:"NAME=id, TYPE=INTEGER, PRIMARY_KEY, AUTO_INCREMENT"`
+		Name string `sql:"NAME=name, TYPE=TEXT(32)"`
+	}{
+		Name: name1,
+	}
+
+	sqlDriver := "sqlite"
+	sqlSource := "./test.db"
+
+	err := os.Remove(sqlSource)
+	if err != nil {
+		t.Errorf("os.Remove error: %v", err)
+		t.FailNow()
+	}
+
+	db, err := NewDatabase(sqlDriver, sqlSource)
+	if err != nil {
+		t.Errorf("NewDatabase error: %v", err)
+		t.FailNow()
+	}
+
+	var num int64 = 1
+	aTable, err := db.NewTable(num, "a", a)
+	if err != nil {
+		t.Errorf("db.NewTable error: %v", err)
+		t.FailNow()
+	}
+
+	migrationNumber, err := db.getTableMigrationNumber(aTable)
+	if err != nil {
+		t.Errorf("db.getTableMigrationNumber error: %v", err)
+		t.FailNow()
+	}
+
+	if migrationNumber != num {
+		t.Errorf("migrationNumber != num (1)")
+		t.FailNow()
+	}
+
+	lastId, err := db.InsertValue(aTable, a)
+	if err != nil {
+		t.Errorf("db.InsertValue error: %v", err)
+		t.FailNow()
+	}
+
+	if lastId != num {
+		t.Errorf("lastId != num")
+		t.FailNow()
+	}
+
+	respIface, err := db.SelectValueById(aTable, lastId)
+	if err != nil {
+		t.Errorf("db.SelectValueById error: %v", err)
+		t.FailNow()
+	}
+
+	resp, ok := respIface.(struct {
+		ID   int64  `sql:"NAME=id, TYPE=INTEGER, PRIMARY_KEY, AUTO_INCREMENT"`
+		Name string `sql:"NAME=name, TYPE=TEXT(32)"`
+	})
+	if !ok {
+		t.Errorf("wrong type assert respIface to anon struct type")
+		t.FailNow()
+	}
+
+	if resp.Name != name1 {
+		t.Errorf("resp.Name != name1")
+		t.FailNow()
+	}
+
+	name2 := "name2"
+	surname2 := "surname2"
+
+	a2 := struct {
+		ID      int64  `sql:"NAME=id, TYPE=INTEGER, PRIMARY_KEY, AUTO_INCREMENT"`
+		Name    string `sql:"NAME=name, TYPE=TEXT(32)"`
+		Surname string `sql:"NAME=surname, TYPE=TEXT(32)"`
+	}{
+		Name:    name2,
+		Surname: surname2,
+	}
+
+	num = 2
+	aTable, err = db.NewTable(num, "a", a2)
+	if err != nil {
+		t.Errorf("db.NewTable error: %v", err)
+		t.FailNow()
+	}
+
+	migrationNumber, err = db.getTableMigrationNumber(aTable)
+	if err != nil {
+		t.Errorf("db.getTableMigrationNumber error: %v", err)
+		t.FailNow()
+	}
+
+	if migrationNumber != num {
+		t.Errorf("migrationNumber != num (2)")
+		t.FailNow()
+	}
+
+	lastId, err = db.InsertValue(aTable, a2)
+	if err != nil {
+		t.Errorf("db.InsertValue error: %v", err)
+		t.FailNow()
+	}
+
+	if lastId != num {
+		t.Errorf("lastId != num")
+		t.FailNow()
+	}
+
+	respIface, err = db.SelectValueById(aTable, lastId)
+	if err != nil {
+		t.Errorf("db.SelectValueById error: %v", err)
+		t.FailNow()
+	}
+
+	resp2, ok := respIface.(struct {
+		ID      int64  `sql:"NAME=id, TYPE=INTEGER, PRIMARY_KEY, AUTO_INCREMENT"`
+		Name    string `sql:"NAME=name, TYPE=TEXT(32)"`
+		Surname string `sql:"NAME=surname, TYPE=TEXT(32)"`
+	})
+	if !ok {
+		t.Errorf("wrong type assert respIface to anon struct type")
+		t.FailNow()
+	}
+
+	if resp2.Name != name2 || resp2.Surname != surname2 {
+		t.Errorf("resp2.Name != name2 || resp2.Surname != surname2")
+		t.FailNow()
+	}
+
+	name3 := "name3"
+	surname3 := "surname3"
+	another3 := "another3"
+
+	a3 := struct {
+		ID      int64  `sql:"NAME=id, TYPE=INTEGER, PRIMARY_KEY, AUTO_INCREMENT"`
+		Name    string `sql:"NAME=name, TYPE=TEXT(32)"`
+		Surname string `sql:"NAME=surname, TYPE=TEXT(32)"`
+		Another string `sql:"NAME=another, TYPE=TEXT(32)"`
+	}{
+		Name:    name3,
+		Surname: surname3,
+		Another: another3,
+	}
+
+	num = 3
+	aTable, err = db.NewTable(num, "a", a3)
+	if err != nil {
+		t.Errorf("db.NewTable error: %v", err)
+		t.FailNow()
+	}
+
+	migrationNumber, err = db.getTableMigrationNumber(aTable)
+	if err != nil {
+		t.Errorf("db.getTableMigrationNumber error: %v", err)
+		t.FailNow()
+	}
+
+	if migrationNumber != num {
+		t.Errorf("migrationNumber != num (3)")
+		t.FailNow()
+	}
+
+	lastId, err = db.InsertValue(aTable, a3)
+	if err != nil {
+		t.Errorf("db.InsertValue error: %v", err)
+		t.FailNow()
+	}
+
+	if lastId != num {
+		t.Errorf("lastId != num")
+		t.FailNow()
+	}
+
+	respIface, err = db.SelectValueById(aTable, lastId)
+	if err != nil {
+		t.Errorf("db.SelectValueById error: %v", err)
+		t.FailNow()
+	}
+
+	resp3, ok := respIface.(struct {
+		ID      int64  `sql:"NAME=id, TYPE=INTEGER, PRIMARY_KEY, AUTO_INCREMENT"`
+		Name    string `sql:"NAME=name, TYPE=TEXT(32)"`
+		Surname string `sql:"NAME=surname, TYPE=TEXT(32)"`
+		Another string `sql:"NAME=another, TYPE=TEXT(32)"`
+	})
+	if !ok {
+		t.Errorf("wrong type assert respIface to anon struct type")
+		t.FailNow()
+	}
+
+	if resp3.Name != name3 || resp3.Surname != surname3 || resp3.Another != another3 {
+		t.Errorf("resp3.Name != name3 || resp3.Surname != surname3 || resp3.Another != another3")
+		t.FailNow()
+	}
+}
+
+// Test Down migrations
+func TestDownMigration(t *testing.T) {
+	sqlDriver := "sqlite"
+	sqlSource := "./test.db"
+
+	err := os.Remove(sqlSource)
+	if err != nil {
+		t.Errorf("os.Remove error: %v", err)
+		t.FailNow()
+	}
+
+	db, err := NewDatabase(sqlDriver, sqlSource)
+	if err != nil {
+		t.Errorf("NewDatabase error: %v", err)
+		t.FailNow()
+	}
+
+	name3 := "name3"
+	surname3 := "surname3"
+	another3 := "another3"
+
+	a3 := struct {
+		ID      int64  `sql:"NAME=id, TYPE=INTEGER, PRIMARY_KEY, AUTO_INCREMENT"`
+		Name    string `sql:"NAME=name, TYPE=TEXT(32)"`
+		Surname string `sql:"NAME=surname, TYPE=TEXT(32)"`
+		Another string `sql:"NAME=another, TYPE=TEXT(32)"`
+	}{
+		Name:    name3,
+		Surname: surname3,
+		Another: another3,
+	}
+
+	var num int64 = 1
+	aTable, err := db.NewTable(num, "a", a3)
+	if err != nil {
+		t.Errorf("db.NewTable error: %v", err)
+		t.FailNow()
+	}
+
+	migrationNumber, err := db.getTableMigrationNumber(aTable)
+	if err != nil {
+		t.Errorf("db.getTableMigrationNumber error: %v", err)
+		t.FailNow()
+	}
+
+	if migrationNumber != num {
+		t.Errorf("migrationNumber != num (3)")
+		t.FailNow()
+	}
+
+	lastId, err := db.InsertValue(aTable, a3)
+	if err != nil {
+		t.Errorf("db.InsertValue error: %v", err)
+		t.FailNow()
+	}
+
+	if lastId != num {
+		t.Errorf("lastId != num")
+		t.FailNow()
+	}
+
+	respIface, err := db.SelectValueById(aTable, lastId)
+	if err != nil {
+		t.Errorf("db.SelectValueById error: %v", err)
+		t.FailNow()
+	}
+
+	resp3, ok := respIface.(struct {
+		ID      int64  `sql:"NAME=id, TYPE=INTEGER, PRIMARY_KEY, AUTO_INCREMENT"`
+		Name    string `sql:"NAME=name, TYPE=TEXT(32)"`
+		Surname string `sql:"NAME=surname, TYPE=TEXT(32)"`
+		Another string `sql:"NAME=another, TYPE=TEXT(32)"`
+	})
+	if !ok {
+		t.Errorf("wrong type assert respIface to anon struct type")
+		t.FailNow()
+	}
+
+	if resp3.Name != name3 || resp3.Surname != surname3 || resp3.Another != another3 {
+		t.Errorf("resp3.Name != name3 || resp3.Surname != surname3 || resp3.Another != another3")
+		t.FailNow()
+	}
+
+	name2 := "name2"
+	surname2 := "surname2"
+
+	a2 := struct {
+		ID      int64  `sql:"NAME=id, TYPE=INTEGER, PRIMARY_KEY, AUTO_INCREMENT"`
+		Name    string `sql:"NAME=name, TYPE=TEXT(32)"`
+		Surname string `sql:"NAME=surname, TYPE=TEXT(32)"`
+	}{
+		Name:    name2,
+		Surname: surname2,
+	}
+
+	num = 2
+	aTable, err = db.NewTable(num, "a", a2)
+	if err != nil {
+		t.Errorf("db.NewTable error: %v", err)
+		t.FailNow()
+	}
+
+	migrationNumber, err = db.getTableMigrationNumber(aTable)
+	if err != nil {
+		t.Errorf("db.getTableMigrationNumber error: %v", err)
+		t.FailNow()
+	}
+
+	if migrationNumber != num {
+		t.Errorf("migrationNumber != num (2)")
+		t.FailNow()
+	}
+
+	lastId, err = db.InsertValue(aTable, a2)
+	if err != nil {
+		t.Errorf("db.InsertValue error: %v", err)
+		t.FailNow()
+	}
+
+	if lastId != num {
+		t.Errorf("lastId != num")
+		t.FailNow()
+	}
+
+	respIface, err = db.SelectValueById(aTable, lastId)
+	if err != nil {
+		t.Errorf("db.SelectValueById error: %v", err)
+		t.FailNow()
+	}
+
+	resp2, ok := respIface.(struct {
+		ID      int64  `sql:"NAME=id, TYPE=INTEGER, PRIMARY_KEY, AUTO_INCREMENT"`
+		Name    string `sql:"NAME=name, TYPE=TEXT(32)"`
+		Surname string `sql:"NAME=surname, TYPE=TEXT(32)"`
+	})
+	if !ok {
+		t.Errorf("wrong type assert respIface to anon struct type")
+		t.FailNow()
+	}
+
+	if resp2.Name != name2 || resp2.Surname != surname2 {
+		t.Errorf("resp2.Name != name2 || resp2.Surname != surname2")
+		t.FailNow()
+	}
+
+	name1 := "name1"
+	a := struct {
+		ID   int64  `sql:"NAME=id, TYPE=INTEGER, PRIMARY_KEY, AUTO_INCREMENT"`
+		Name string `sql:"NAME=name, TYPE=TEXT(32)"`
+	}{
+		Name: name1,
+	}
+
+	num = 3
+	aTable, err = db.NewTable(num, "a", a)
+	if err != nil {
+		t.Errorf("db.NewTable error: %v", err)
+		t.FailNow()
+	}
+
+	migrationNumber, err = db.getTableMigrationNumber(aTable)
+	if err != nil {
+		t.Errorf("db.getTableMigrationNumber error: %v", err)
+		t.FailNow()
+	}
+
+	if migrationNumber != num {
+		t.Errorf("migrationNumber != num (1)")
+		t.FailNow()
+	}
+
+	lastId, err = db.InsertValue(aTable, a)
+	if err != nil {
+		t.Errorf("db.InsertValue error: %v", err)
+		t.FailNow()
+	}
+
+	if lastId != num {
+		t.Errorf("lastId != num")
+		t.FailNow()
+	}
+
+	respIface, err = db.SelectValueById(aTable, lastId)
+	if err != nil {
+		t.Errorf("db.SelectValueById error: %v", err)
+		t.FailNow()
+	}
+
+	resp, ok := respIface.(struct {
+		ID   int64  `sql:"NAME=id, TYPE=INTEGER, PRIMARY_KEY, AUTO_INCREMENT"`
+		Name string `sql:"NAME=name, TYPE=TEXT(32)"`
+	})
+	if !ok {
+		t.Errorf("wrong type assert respIface to anon struct type")
+		t.FailNow()
+	}
+
+	if resp.Name != name1 {
+		t.Errorf("resp.Name != name1")
+		t.FailNow()
+	}
+}
