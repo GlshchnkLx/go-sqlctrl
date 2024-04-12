@@ -133,6 +133,8 @@ type Table struct {
 	FieldNameArray []string               `json:"fieldNameArray"`
 	FieldMap       map[string]*TableField `json:"fieldMap"`
 
+	MigrationNumber int64 `json:"migrationNumber"`
+
 	AutoIncrement *TableField `json:"autoIncrement"`
 }
 

@@ -23,3 +23,6 @@ go.work
 # Temporary files (testing)
 test.json
 test.db
+
+# Debug binary file
+__debug_*

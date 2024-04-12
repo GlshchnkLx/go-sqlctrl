@@ -16,6 +16,9 @@ var (
 	ErrTableDoesNotExists   = fmt.Errorf("table does not exists")
 	ErrTableDoesNotMigtated = fmt.Errorf("table does not migrated")
 
+	ErrMigrationTableIsEmpty      = fmt.Errorf("migration table is empty")
+	ErrMigrationTableFieldIsEmpty = fmt.Errorf("migration table field is empty")
+
 	ErrTableDoesNotHaveAutoIncrement = fmt.Errorf("table does not have auto increment")
 	ErrTableDidNotInsertTheValue     = fmt.Errorf("table did not insert the value")
 	ErrTableDidNotReplaceTheValue    = fmt.Errorf("table did not replace the value")
