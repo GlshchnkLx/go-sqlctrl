@@ -133,6 +133,18 @@ func main() {
 	for i, v := range resultArray {
 		fmt.Println(i, v.UserName, v.TokenContent)
 	}
+
+	// ForEach usage example
+	err = db.ForEach(userTable, func(index int64, value interface{}) error {
+		user, ok := value.(User)
+		if !ok {
+			return errors.New("wrong type assert")
+		}
+
+		user.Name = "User Test"
+
+		return db.UpdateValue(userTable, user)
+	}, 3)
 }
 ```
 
