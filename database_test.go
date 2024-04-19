@@ -2,6 +2,7 @@ package sqlctrl
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
 	"os"
 	"testing"
@@ -425,6 +426,74 @@ func TestSelectAll(t *testing.T) {
 	}
 
 	responseIface, err := db.SelectAll(table)
+	if err != nil {
+		t.Errorf("db.SelectAll error: %v", err)
+		t.FailNow()
+	}
+
+	responseArray, ok := responseIface.([]TestTable)
+	if !ok {
+		t.Errorf("wrong type assertion responseIface to []TestTable")
+		t.FailNow()
+	}
+
+	if len(responseArray) < 3 {
+		t.Errorf("len(responseArray) < 3")
+		t.FailNow()
+	}
+
+	if responseArray[2].ParamA != 3 {
+		t.Errorf("wrong ParamA")
+		t.FailNow()
+	}
+
+	err = db.DropTable(table)
+	if err != nil {
+		t.Errorf("db.DropTable error: %v", err)
+		t.FailNow()
+	}
+}
+
+func TestSelectAllWithLimit(t *testing.T) {
+	type TestTable struct {
+		ParamA int64  `sql:"NAME=paramA, TYPE=INTEGER, PRIMARY_KEY, AUTO_INCREMENT"`
+		ParamB string `sql:"NAME=paramB, TYPE=TEXT(32)"`
+	}
+
+	sqlDriver := "sqlite"
+	sqlSource := "./test.db"
+
+	db, err := NewDatabase(sqlDriver, sqlSource)
+	if err != nil {
+		t.Errorf("NewDatabase error: %v", err)
+		t.FailNow()
+	}
+
+	table, err := NewTable("test_table", TestTable{})
+	if err != nil {
+		t.Errorf("NewTable error: %v", err)
+		t.FailNow()
+	}
+
+	if !db.CheckExistTable(table) {
+		err = db.CreateTable(table)
+		if err != nil {
+			t.Errorf("db.CreateTable error: %v", err)
+			t.FailNow()
+		}
+	}
+
+	_, err = db.InsertValue(table, []TestTable{
+		{ParamB: "a"},
+		{ParamB: "b"},
+		{ParamB: "c"},
+	})
+	if err != nil {
+		t.Errorf("db.InsertValue error: %v", err)
+		t.FailNow()
+	}
+
+	responseIface, err := db.SelectAllWithLimit(table, 0, 10)
 	if err != nil {
 		t.Errorf("db.SelectAll error: %v", err)
 		t.FailNow()
@@ -1319,6 +1388,97 @@ func TestExecWithTable(t *testing.T) {
 	if err != nil {
 		t.Errorf("db.DropTable error: %v", err)
 		t.FailNow()
+	}
+}
+
+func TestForEach(t *testing.T) {
+	type User struct {
+		ID   int64  `sql:"NAME=id, TYPE=INTEGER, PRIMARY_KEY, AUTO_INCREMENT"`
+		Name string `sql:"NAME=name, TYPE=TEXT(32)"`
+	}
+
+	sqlDriver := "sqlite"
+	sqlSource := "./test.db"
+
+	err := os.Remove(sqlSource)
+	if err != nil {
+		t.Errorf("os.Remove error: %v", err)
+		t.FailNow()
+	}
+
+	db, err := NewDatabase(sqlDriver, sqlSource)
+	if err != nil {
+		t.Errorf("NewDatabase err: %v", err)
+		t.FailNow()
+	}
+
+	// creating a table with the name
+	userTable, err := db.NewTable(12, "users", User{})
+	if err != nil {
+		t.Errorf("db.NewTable err: %v", err)
+		t.FailNow()
+	}
+
+	if !db.CheckExistTable(userTable) {
+		err = db.CreateTable(userTable)
+		if err != nil {
+			t.Errorf("db.CreateTable err: %v", err)
+			t.FailNow()
+		}
+	}
+
+	_, err = db.InsertValue(userTable, []User{
+		{Name: "test1"},
+		{Name: "test1"},
+		{Name: "test1"},
+		{Name: "test1"},
+		{Name: "test1"},
+		{Name: "test1"},
+	})
+	if err != nil {
+		t.Errorf("db.InsertValue err: %v", err)
+		t.FailNow()
+	}
+
+	newName := "test2"
+	err = db.ForEach(userTable, func(index int64, object interface{}) error {
+		user, ok := object.(User)
+		if !ok {
+			return errors.New("wrong type assert")
+		}
+
+		user.Name = newName
+
+		return db.UpdateValue(userTable, user)
+	}, 3)
+
+	if err != nil {
+		t.Errorf("db.ForEach err: %v", err)
+		t.FailNow()
+	}
+
+	respIface, err := db.SelectAll(userTable)
+	if err != nil {
+		t.Errorf("db.SelectAll err: %v", err)
+		t.FailNow()
+	}
+
+	users, ok := respIface.([]User)
+	if !ok {
+		t.Errorf("wrong type assert")
+		t.FailNow()
+	}
+
+	if len(users) != 6 {
+		t.Errorf("len(users) != 6")
+		t.FailNow()
+	}
+
+	for _, v := range users {
+		if v.Name != newName {
+			t.Errorf("v.Name != newName")
+			t.FailNow()
+		}
 	}
 }
 
