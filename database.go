@@ -1237,6 +1237,68 @@ func (db *DataBase) DeleteValue(table *Table, value interface{}) error {
 	})
 }
 
+// Iterates over each row of @table and executes @hanler func.
+// @table must be non-empty table and be present in database.
+// @portion limits sizes of data chunk stored in memory.
+// Be careful with @portion -- may cause troubles on big @portion values and large data object size.
+// This method does not have any transaction control.
+// @index might be not equal @table Id and used only as iteration index.
+// @value is a current iteration object.
+//
+// Inspired by js/ts ForEach. Probably is a case of internal iterator pattern.
+// https://wiki.c2.com/?InternalIterator
+// If handler code returns non nil error - iteration stops and same error is returned.
+func (db *DataBase) ForEach(table *Table, handler func(index int64, value interface{}) error, portion int64) error {
+	if table == nil || handler == nil || portion == 0 {
+		return ErrInvalidArgument
+	}
+
+	if !db.CheckExistTable(table) {
+		return ErrTableDoesNotExists
+	}
+
+	count, err := db.GetCount(table)
+	if err != nil {
+		return err
+	}
+
+	if count == 0 {
+		return errors.New("zero objects found")
+	}
+
+	for p := int64(0); p < count; p += portion {
+		err := func() error {
+			value, err := db.SelectAllWithLimit(table, p, portion)
+			if err != nil {
+				return err
+			}
+
+			valueArray, err := table.convertInterfaceToInterfaceArray(value)
+			if err != nil {
+				return err
+			}
+
+			for i, v := range valueArray {
+				err := handler(p+int64(i), v)
+				if err != nil {
+					return fmt.Errorf(
+						"error at range[%d: %d], table index: %d, object: %v error: %v",
+						p, p+portion, i, v, err,
+					)
+				}
+			}
+
+			return nil
+		}()
+
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
 //--------------------------------------------------------------------------------//
 
 // Creates a Database object specified by its database driver @sqlDriver
