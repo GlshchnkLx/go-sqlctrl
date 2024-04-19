@@ -968,6 +968,18 @@ func (db *DataBase) SelectAll(table *Table) (response interface{}, err error) {
 	return db.QueryWithTable(table, fmt.Sprintf("SELECT * FROM `%s`;", table.SqlName))
 }
 
+// Selects from given @table all data as slice of objects.
+// Data is limited by index @from and @portion size.
+// Result of select is returned as interface{} object
+func (db *DataBase) SelectAllWithLimit(table *Table, from, portion int64) (response interface{}, err error) {
+	if table == nil || from < 0 || portion == 0 {
+		err = ErrInvalidArgument
+		return
+	}
+
+	return db.QueryWithTable(table, fmt.Sprintf("SELECT * FROM `%s` LIMIT %d, %d;", table.SqlName, from, portion))
+}
+
 // Selects from given @table slice of objects with specified @where conditional string.
 // Result of select is returned as interface{} object.
 func (db *DataBase) SelectValue(table *Table, where string) (response interface{}, err error) {
